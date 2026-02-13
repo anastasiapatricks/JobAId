@@ -1,45 +1,147 @@
-# agents/resume_parser.py
-import re
+"""LLM-powered resume parser with structured extraction and de-biasing."""
+
+import json
 from typing import Dict, Any
+
+from langchain_openai import ChatOpenAI
+from langchain.schema import SystemMessage, HumanMessage
+
+from config.settings import settings
+from config.prompts import RESUME_PARSER_SYSTEM, RESUME_PARSER_CONFIDENCE
+from guardrails.input_filter import spotlight_wrap, validate_resume_text
+from tools.pii_sanitizer import strip_pii
+from utils import debug
+
 
 def load_resume_from_file(path: str) -> str:
     """Read and return plain text content from a resume file."""
     with open(path, "r", encoding="utf-8") as f:
         return f.read().strip()
 
-def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Parse resume inputted by user.
-    """
 
-    text = (state.get("resume_text") or "").strip()
-    info = {
-        "name": None,
-        "years_experience": None,
-        "skills": [],
+def _parse_json_response(text: str) -> dict:
+    """Extract JSON from LLM response, handling markdown fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        # Strip markdown code fences
+        lines = text.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        debug(f"JSON parse failed, raw: {text[:200]}")
+        return {}
+
+
+def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse resume text using LLM for structured extraction.
+
+    Returns state update with resume_info, resume_debiased, confidence, missing_fields.
+    """
+    resume_text = (state.get("resume_text") or "").strip()
+
+    # Input validation
+    valid, error_msg = validate_resume_text(resume_text)
+    if not valid:
+        return {
+            "messages": [{"role": "assistant", "content": f"[Resume Parser] {error_msg}"}],
+            "resume_info": {},
+            "parsing_confidence": 0.0,
+            "errors": list(state.get("errors") or []) + [{"stage": "parsing", "error": error_msg}],
+        }
+
+    llm = ChatOpenAI(model=settings.default_model, temperature=0)
+
+    # Step 1: Extract structured resume info
+    debug("Resume Parser: extracting structured info via LLM")
+    extraction_response = llm.invoke([
+        SystemMessage(content=RESUME_PARSER_SYSTEM),
+        HumanMessage(content=spotlight_wrap(resume_text)),
+    ])
+    resume_info = _parse_json_response(extraction_response.content)
+
+    if not resume_info:
+        # Fallback to basic regex extraction
+        debug("Resume Parser: LLM extraction failed, using regex fallback")
+        resume_info = _fallback_regex_parse(resume_text)
+
+    # Step 2: Assess confidence
+    debug("Resume Parser: assessing confidence")
+    confidence_response = llm.invoke([
+        SystemMessage(content=RESUME_PARSER_CONFIDENCE),
+        HumanMessage(content=json.dumps(resume_info, indent=2)),
+    ])
+    confidence_data = _parse_json_response(confidence_response.content)
+    confidence = confidence_data.get("confidence", 0.5)
+    missing_fields = confidence_data.get("missing_fields", [])
+
+    # Step 3: De-bias for downstream
+    resume_debiased = strip_pii(resume_info)
+
+    # Build display message
+    contact = resume_info.get("contact_info", {})
+    name = contact.get("name", "Unknown") if isinstance(contact, dict) else "Unknown"
+    skills = resume_info.get("skills", {})
+    tech_skills = skills.get("technical", []) if isinstance(skills, dict) else []
+    yoe = resume_info.get("years_of_experience")
+    msg = (
+        f"[Resume Parser] Parsed resume for {name}. "
+        f"Skills: {', '.join(tech_skills[:8]) or '—'}. "
+        f"Experience: {yoe or '—'} yrs. "
+        f"Confidence: {confidence:.0%}."
+    )
+
+    # HITL: flag for review if low confidence
+    requires_review = confidence < 0.7
+
+    result: Dict[str, Any] = {
+        "messages": [{"role": "assistant", "content": msg}],
+        "resume_info": resume_info,
+        "resume_debiased": resume_debiased,
+        "parsing_confidence": confidence,
+        "missing_fields": missing_fields,
+    }
+    if requires_review:
+        result["requires_human_approval"] = True
+
+    return result
+
+
+def _fallback_regex_parse(text: str) -> dict:
+    """Basic regex extraction as fallback when LLM fails."""
+    import re
+
+    info: Dict[str, Any] = {
+        "contact_info": {"name": None, "email": None, "phone": None, "location": None},
+        "professional_summary": None,
+        "skills": {"technical": [], "soft": [], "certifications": []},
+        "experience": [],
+        "education": [],
+        "industry_terms": [],
+        "years_of_experience": None,
     }
 
-    # naive extractions
+    # Name
     m = re.search(r"(?:Name|Candidate)[:\-]\s*([A-Za-z .'-]{2,})", text, re.I)
     if m:
-        info["name"] = m.group(1).strip()
+        info["contact_info"]["name"] = m.group(1).strip()
 
+    # Years of experience
     m = re.search(r"(\d+)\s*\+?\s*(?:years|yrs)", text, re.I)
     if m:
-        info["years_experience"] = int(m.group(1))
+        info["years_of_experience"] = int(m.group(1))
 
-    # skill bag from common tech; extend as needed
-    SKILLS = [
-        "python","java","javascript","typescript","c++","spring","spring boot",
-        "angular","react","sql","postgres","mysql","db2","docker","kubernetes",
-        "aws","gcp","azure","git","maven","jest","junit","redis","microservices"
+    # Skills from common tech list
+    known_skills = [
+        "python", "java", "javascript", "typescript", "c++", "spring", "spring boot",
+        "angular", "react", "sql", "postgres", "postgresql", "mysql", "db2", "docker",
+        "kubernetes", "aws", "gcp", "azure", "git", "maven", "jest", "junit",
+        "redis", "microservices", "kafka", "go", "golang", "rust", "node",
+        "nodejs", "vue", "svelte", "terraform", "ci/cd", "graphql", "rest",
     ]
     lower = text.lower()
-    found = {s for s in SKILLS if s in lower}
-    info["skills"] = sorted(found)
+    found = sorted({s for s in known_skills if s in lower})
+    info["skills"]["technical"] = found
 
-    msg = f"Parsed resume. Skills: {', '.join(info['skills']) or '—'}. Experience: {info['years_experience'] or '—'} yrs."
-    return {
-        "messages": [{"role": "assistant", "content": msg}],
-        "resume_info": info,
-    }
+    return info

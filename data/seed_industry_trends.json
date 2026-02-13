@@ -1,0 +1,74 @@
+[
+  {
+    "industry": "software_engineering",
+    "topic": "AI-assisted development",
+    "year": "2025",
+    "content": "AI-assisted software development has become mainstream with tools like GitHub Copilot, Cursor, and Claude Code transforming developer workflows. Companies increasingly expect engineers to be proficient with AI coding assistants, and job listings now frequently mention AI-augmented development as a desired skill. Engineers who can effectively leverage LLMs for code generation, debugging, and architecture decisions are seeing 15-20% salary premiums."
+  },
+  {
+    "industry": "software_engineering",
+    "topic": "Platform engineering",
+    "year": "2025",
+    "content": "Platform engineering has emerged as a distinct discipline, with organizations building internal developer platforms (IDPs) to improve developer experience. Kubernetes-based platforms, service meshes, and GitOps workflows are standard. Demand for platform engineers who understand both infrastructure and developer workflows has grown 40% year-over-year in Singapore's tech market."
+  },
+  {
+    "industry": "software_engineering",
+    "topic": "Rust adoption",
+    "year": "2025",
+    "content": "Rust continues to gain enterprise adoption for performance-critical systems, with companies like AWS, Google, and Microsoft investing heavily. In Singapore, fintech and trading firms are actively hiring Rust developers for low-latency systems. The Rust ecosystem has matured significantly with stable async runtimes and web frameworks."
+  },
+  {
+    "industry": "cloud",
+    "topic": "Multi-cloud strategy",
+    "year": "2025",
+    "content": "Multi-cloud adoption has become the default for enterprise organizations in Southeast Asia. Companies are investing in cloud-agnostic tooling like Terraform and Pulumi, and engineers with experience across AWS, GCP, and Azure command premium salaries. FinOps (cloud cost optimization) has also emerged as a critical skill set."
+  },
+  {
+    "industry": "data",
+    "topic": "Real-time data and streaming",
+    "year": "2025",
+    "content": "Real-time data processing has moved from nice-to-have to essential. Apache Kafka, Apache Flink, and managed streaming services are widely adopted. Data engineers who can build end-to-end streaming pipelines with exactly-once semantics are in high demand. The shift from batch to streaming has increased demand for event-driven architecture expertise."
+  },
+  {
+    "industry": "data",
+    "topic": "Data mesh and decentralized data",
+    "year": "2025",
+    "content": "Data mesh principles — domain-oriented ownership, data as a product, self-serve platforms, and federated governance — are being adopted by large organizations in Singapore's banking and e-commerce sectors. Data engineers who understand both the technical and organizational aspects of data mesh are highly sought after."
+  },
+  {
+    "industry": "ai_ml",
+    "topic": "LLM operations and RAG",
+    "year": "2025",
+    "content": "Production LLM deployment has created demand for new skills: retrieval-augmented generation (RAG), vector databases, prompt engineering, LLM evaluation, and guardrails implementation. ML engineers who can build reliable LLM-powered applications with proper evaluation frameworks and safety measures are commanding top-tier compensation packages."
+  },
+  {
+    "industry": "ai_ml",
+    "topic": "MLOps maturity",
+    "year": "2025",
+    "content": "MLOps has matured with standardized tooling including MLflow, Weights & Biases, and managed ML platforms. Companies expect ML engineers to handle the full lifecycle from experimentation to production monitoring. Feature stores, model registries, and automated retraining pipelines are now table stakes for ML teams."
+  },
+  {
+    "industry": "cybersecurity",
+    "topic": "AI-powered threats",
+    "year": "2025",
+    "content": "The cybersecurity landscape has intensified with AI-powered threats including deepfake social engineering, automated vulnerability discovery, and LLM-assisted phishing. Singapore's Cybersecurity Agency has updated regulations requiring companies to implement AI-aware security measures. Demand for security professionals with AI/ML knowledge has surged 50%."
+  },
+  {
+    "industry": "fintech",
+    "topic": "Digital banking in Southeast Asia",
+    "year": "2025",
+    "content": "Southeast Asia's digital banking sector continues rapid growth with Singapore as the regional hub. Digital banks and payment platforms are aggressively hiring engineers with experience in high-availability systems, regulatory compliance (MAS guidelines), and real-time payment processing. Java/Spring Boot and Golang are the dominant backend stacks in Singapore fintech."
+  },
+  {
+    "industry": "general",
+    "topic": "Remote and hybrid work",
+    "year": "2025",
+    "content": "Hybrid work has stabilized as the norm in Singapore's tech industry, with most companies offering 2-3 days in office. Fully remote positions remain available primarily from US and European companies hiring in Singapore. Engineers open to hybrid arrangements have access to approximately 30% more opportunities than those requiring fully remote."
+  },
+  {
+    "industry": "general",
+    "topic": "Green software engineering",
+    "year": "2025",
+    "content": "Sustainability in software engineering is gaining traction with initiatives like the Green Software Foundation influencing hiring. Companies are beginning to measure and optimize the carbon footprint of their software systems. Engineers who understand energy-efficient coding practices and sustainable cloud architecture are seeing growing demand."
+  }
+]

@@ -1,62 +1,123 @@
+"""Grounded summarizer with explainability — uses structured state data only."""
+
+import json
+from typing import Dict, Any
+
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
+from langchain.schema import SystemMessage, HumanMessage
 
-def summarizer(state) -> str:
-    """
-    Generate summary when conversation ends (same return format as sample).
-    """
+from config.settings import settings
+from config.prompts import SUMMARIZER_SYSTEM
+from utils import debug
 
-    messages = state.get("messages", [])
-    print("[DEBUG] Summarizer received messages:")
-    for i, m in enumerate(messages):
-        print(f"  [{i}] {m}")
-    if not messages:
-        print("[DEBUG] No messages to summarize.")
-        return "No conversation to summarize."
 
-    conversation_text = "\n".join(m.get("content", "") for m in messages if isinstance(m, dict))
-    print("[DEBUG] Summarizer conversation_text:")
-    print(conversation_text)
+def _build_grounded_context(state: Dict[str, Any]) -> str:
+    """Build a context string from structured state data only (no raw messages)."""
+    sections = []
 
-    if not conversation_text.strip():
-        print("[DEBUG] No conversation content to summarize.")
-        return "No conversation content to summarize."
+    # Resume info
+    info = state.get("resume_info") or {}
+    if info:
+        contact = info.get("contact_info", {})
+        name = contact.get("name", "Unknown") if isinstance(contact, dict) else "Unknown"
+        skills = info.get("skills", {})
+        tech = skills.get("technical", []) if isinstance(skills, dict) else []
+        yoe = info.get("years_of_experience")
+        sections.append(
+            f"RESUME:\n"
+            f"  Candidate: {name}\n"
+            f"  Technical skills: {', '.join(tech) if tech else 'N/A'}\n"
+            f"  Years of experience: {yoe or 'N/A'}\n"
+            f"  Parsing confidence: {state.get('parsing_confidence', 'N/A')}"
+        )
 
-    system_prompt = """You are the observer of a Job Search multi-agent run.
+    # Job matches
+    scored = state.get("scored_jobs") or []
+    if scored:
+        job_lines = []
+        for i, j in enumerate(scored[:5], 1):
+            job_lines.append(
+                f"  {i}. {j.get('title', '?')} @ {j.get('company', '?')} "
+                f"— Score: {j.get('score', '?')}/100 — {j.get('explanation', '')}"
+            )
+        sections.append("JOB MATCHES:\n" + "\n".join(job_lines))
 
-Summarize crisply:
-1) What each agent accomplished (Resume Parser, Job Search, Relevance Scorer, Pitch Generator).
-2) Key data passed between agents (skills, listings, scores, final pitch).
-3) Final recommendation / next action for the user.
+    # Skill gaps
+    gaps = state.get("skill_gaps") or []
+    if gaps:
+        gap_lines = [f"  - {g.get('skill', '?')} ({g.get('importance', 'medium')})" for g in gaps[:8]]
+        sections.append("SKILL GAPS:\n" + "\n".join(gap_lines))
 
-Keep it short, structured, and readable.
-"""
+    # Upskilling roadmap
+    roadmap = state.get("upskilling_roadmap") or []
+    if roadmap:
+        road_lines = []
+        for item in roadmap[:5]:
+            courses = item.get("recommended_courses", [])
+            road_lines.append(
+                f"  - {item.get('skill', '?')}: {', '.join(courses[:2]) if courses else 'self-study'}"
+            )
+        sections.append("UPSKILLING ROADMAP:\n" + "\n".join(road_lines))
 
-    user_prompt = f"""Transcript / log:
+    # Salary insights
+    salary = state.get("salary_insights")
+    if salary and isinstance(salary, dict):
+        currency = salary.get("currency", "SGD")
+        mn = salary.get("min_salary")
+        mx = salary.get("max_salary")
+        if mn and mx:
+            sections.append(f"SALARY INSIGHTS:\n  Range: {currency} {mn:,.0f} – {mx:,.0f}")
 
-{conversation_text}
+    # Industry trends
+    trends = state.get("industry_trends") or []
+    if trends:
+        trend_lines = [f"  - {t}" for t in trends[:4]]
+        sections.append("INDUSTRY TRENDS:\n" + "\n".join(trend_lines))
 
-Please summarize the outcome for the end-of-run report."""
+    # Cover letter
+    pitch = state.get("final_pitch")
+    if pitch:
+        sections.append(f"COVER LETTER:\n  (Generated for top match — {len(pitch)} chars)")
+
+    # Errors / fallbacks
+    errors = state.get("errors") or []
+    fallbacks = state.get("fallback_used") or []
+    if errors or fallbacks:
+        sections.append(
+            f"NOTES:\n"
+            f"  Errors: {len(errors)}\n"
+            f"  Fallbacks used: {', '.join(fallbacks) if fallbacks else 'None'}"
+        )
+
+    return "\n\n".join(sections) if sections else "No data available to summarize."
+
+
+def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate a grounded summary using only structured state data."""
+    context = _build_grounded_context(state)
 
     try:
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=1)
-        response = llm.invoke([SystemMessage(content=system_prompt),
-                               HumanMessage(content=user_prompt)])
-        text = response.content if isinstance(response.content, str) else str(response.content)
+        llm = ChatOpenAI(model=settings.default_model, temperature=0)
+        response = llm.invoke([
+            SystemMessage(content=SUMMARIZER_SYSTEM),
+            HumanMessage(content=f"Session data:\n\n{context}\n\nGenerate the final report."),
+        ])
+        summary_text = response.content.strip()
+    except Exception as exc:
+        debug(f"Summarizer LLM error: {exc}")
+        summary_text = f"=== JobAId Summary ===\n\n{context}"
 
-        # optional: expose top match/pitch if available
-        top_line = ""
-        scored = state.get("scored_jobs") or []
-        if scored:
-            top = scored[0]
-            j = top.get("job", {})
-            top_line = f"\n\nTop match: {j.get('title','(N/A)')} @ {j.get('company','(N/A)')} ({top.get('score','?')}/100)"
-        pitch_line = f"\n\n=== SAMPLE PITCH ===\n{state.get('final_pitch','')}" if state.get("final_pitch") else ""
+    # Build decision log summary
+    log = state.get("decision_log") or []
+    log_text = ""
+    if log:
+        log_text = "\n\n--- Decision Log ---\n" + "\n".join(
+            f"[{e.get('stage')}] {e.get('action')}: {e.get('reasoning')}" for e in log
+        )
 
-        return f"=== JOB CONNECT SUMMARY ===\n\n{text.strip()}{top_line}{pitch_line}"
+    full_summary = summary_text + log_text
 
-    except Exception:
-        # Fallback similar to your sample style
-        return (f"=== JOB CONNECT SUMMARY ===\n\n"
-                f"Total messages: {len(messages)}\n\n"
-                f"Unable to generate detailed summary at this time.")
+    return {
+        "messages": [{"role": "assistant", "content": f"[Summarizer] Final report generated."}],
+        "summary": full_summary,
+    }

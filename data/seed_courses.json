@@ -1,0 +1,137 @@
+[
+  {
+    "title": "Python for Data Science and Machine Learning",
+    "description": "Comprehensive course covering Python fundamentals, NumPy, Pandas, Matplotlib, Scikit-learn, and TensorFlow for data science workflows",
+    "skills": ["python", "machine learning", "data science", "pandas", "scikit-learn"],
+    "provider": "Coursera",
+    "level": "intermediate",
+    "duration": "40 hours",
+    "url": "https://www.coursera.org/specializations/python-data-science"
+  },
+  {
+    "title": "AWS Solutions Architect Associate",
+    "description": "Prepare for the AWS SAA certification covering EC2, S3, VPC, IAM, Lambda, and cloud architecture best practices",
+    "skills": ["aws", "cloud", "architecture", "serverless", "networking"],
+    "provider": "AWS Training",
+    "level": "intermediate",
+    "duration": "60 hours",
+    "url": "https://aws.amazon.com/certification/certified-solutions-architect-associate/"
+  },
+  {
+    "title": "Docker and Kubernetes: The Complete Guide",
+    "description": "Learn containerization with Docker and container orchestration with Kubernetes including deployments, services, and Helm charts",
+    "skills": ["docker", "kubernetes", "devops", "containers", "helm"],
+    "provider": "Udemy",
+    "level": "intermediate",
+    "duration": "30 hours",
+    "url": "https://www.udemy.com/course/docker-and-kubernetes-the-complete-guide/"
+  },
+  {
+    "title": "React - The Complete Guide",
+    "description": "Master React including hooks, Redux, Next.js, TypeScript integration, testing with Jest, and building production applications",
+    "skills": ["react", "javascript", "typescript", "redux", "next.js"],
+    "provider": "Udemy",
+    "level": "beginner",
+    "duration": "48 hours",
+    "url": "https://www.udemy.com/course/react-the-complete-guide/"
+  },
+  {
+    "title": "Spring Boot Microservices",
+    "description": "Build production-ready microservices with Spring Boot, Spring Cloud, Docker, and Kubernetes deployment",
+    "skills": ["spring boot", "java", "microservices", "spring cloud", "docker"],
+    "provider": "Udemy",
+    "level": "advanced",
+    "duration": "35 hours",
+    "url": "https://www.udemy.com/course/spring-boot-microservices/"
+  },
+  {
+    "title": "SQL for Data Analysis",
+    "description": "Master SQL querying including joins, subqueries, window functions, CTEs, and performance optimization for analytics",
+    "skills": ["sql", "data analysis", "postgres", "mysql", "database"],
+    "provider": "DataCamp",
+    "level": "beginner",
+    "duration": "20 hours",
+    "url": "https://www.datacamp.com/courses/intro-to-sql-for-data-science"
+  },
+  {
+    "title": "Terraform Associate Certification Prep",
+    "description": "Learn Infrastructure as Code with Terraform covering providers, modules, state management, and multi-cloud deployments",
+    "skills": ["terraform", "infrastructure as code", "aws", "azure", "devops"],
+    "provider": "HashiCorp",
+    "level": "intermediate",
+    "duration": "25 hours",
+    "url": "https://learn.hashicorp.com/collections/terraform/certification"
+  },
+  {
+    "title": "Angular Complete Course",
+    "description": "Full Angular framework course covering components, services, RxJS, routing, forms, HTTP, and testing with Jasmine",
+    "skills": ["angular", "typescript", "rxjs", "javascript", "testing"],
+    "provider": "Udemy",
+    "level": "beginner",
+    "duration": "34 hours",
+    "url": "https://www.udemy.com/course/the-complete-guide-to-angular-2/"
+  },
+  {
+    "title": "Apache Kafka for Developers",
+    "description": "Learn event-driven architecture with Apache Kafka including producers, consumers, streams, and connect",
+    "skills": ["kafka", "event-driven", "java", "streaming", "microservices"],
+    "provider": "Confluent",
+    "level": "intermediate",
+    "duration": "20 hours",
+    "url": "https://developer.confluent.io/courses/"
+  },
+  {
+    "title": "Google Cloud Professional Cloud Architect",
+    "description": "Prepare for the GCP PCA certification covering compute, storage, networking, security, and cloud-native design",
+    "skills": ["gcp", "cloud", "architecture", "kubernetes", "networking"],
+    "provider": "Google Cloud",
+    "level": "advanced",
+    "duration": "50 hours",
+    "url": "https://cloud.google.com/certification/cloud-architect"
+  },
+  {
+    "title": "Redis University: Redis for Developers",
+    "description": "Learn Redis data structures, caching patterns, pub/sub, streams, and Redis Stack for application development",
+    "skills": ["redis", "caching", "database", "python", "java"],
+    "provider": "Redis University",
+    "level": "beginner",
+    "duration": "15 hours",
+    "url": "https://university.redis.io/"
+  },
+  {
+    "title": "Machine Learning Engineering with MLOps",
+    "description": "Production ML engineering covering MLflow, model serving, monitoring, CI/CD for ML, and feature stores",
+    "skills": ["machine learning", "mlops", "python", "docker", "kubernetes"],
+    "provider": "Coursera",
+    "level": "advanced",
+    "duration": "45 hours",
+    "url": "https://www.coursera.org/specializations/machine-learning-engineering-for-production-mlops"
+  },
+  {
+    "title": "System Design Interview Preparation",
+    "description": "Learn scalable system design covering load balancing, caching, database sharding, message queues, and microservices architecture",
+    "skills": ["system design", "architecture", "distributed systems", "scalability"],
+    "provider": "Educative",
+    "level": "advanced",
+    "duration": "30 hours",
+    "url": "https://www.educative.io/courses/grokking-the-system-design-interview"
+  },
+  {
+    "title": "Cybersecurity Fundamentals",
+    "description": "Core cybersecurity concepts including network security, threat detection, incident response, and SIEM tools",
+    "skills": ["cybersecurity", "security", "networking", "siem", "incident response"],
+    "provider": "Coursera",
+    "level": "beginner",
+    "duration": "30 hours",
+    "url": "https://www.coursera.org/professional-certificates/google-cybersecurity"
+  },
+  {
+    "title": "Go Programming Language Bootcamp",
+    "description": "Learn Go from basics to advanced including concurrency, interfaces, testing, and building REST APIs and gRPC services",
+    "skills": ["golang", "go", "concurrency", "grpc", "rest"],
+    "provider": "Udemy",
+    "level": "beginner",
+    "duration": "25 hours",
+    "url": "https://www.udemy.com/course/go-the-complete-developers-guide/"
+  }
+]

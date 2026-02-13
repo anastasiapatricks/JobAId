@@ -1,0 +1,164 @@
+[
+  {
+    "role": "Software Engineer",
+    "level": "junior",
+    "min_salary": 48000,
+    "max_salary": 72000,
+    "median_salary": 60000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Software Engineer",
+    "level": "mid",
+    "min_salary": 72000,
+    "max_salary": 108000,
+    "median_salary": 90000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Software Engineer",
+    "level": "senior",
+    "min_salary": 108000,
+    "max_salary": 168000,
+    "median_salary": 132000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Backend Engineer",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 120000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Frontend Engineer",
+    "level": "mid",
+    "min_salary": 72000,
+    "max_salary": 108000,
+    "median_salary": 84000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Full-stack Engineer",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 120000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Data Engineer",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 132000,
+    "median_salary": 102000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Data Scientist",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 144000,
+    "median_salary": 108000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "DevOps Engineer",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 132000,
+    "median_salary": 102000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "ML Engineer",
+    "level": "mid",
+    "min_salary": 96000,
+    "max_salary": 156000,
+    "median_salary": 120000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Platform Engineer",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 132000,
+    "median_salary": 108000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Site Reliability Engineer",
+    "level": "mid",
+    "min_salary": 90000,
+    "max_salary": 144000,
+    "median_salary": 114000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Solutions Architect",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 192000,
+    "median_salary": 156000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Cloud Architect",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 204000,
+    "median_salary": 168000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Cybersecurity Analyst",
+    "level": "mid",
+    "min_salary": 72000,
+    "max_salary": 120000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "QA Engineer",
+    "level": "mid",
+    "min_salary": 60000,
+    "max_salary": 96000,
+    "median_salary": 78000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Product Manager",
+    "level": "mid",
+    "min_salary": 96000,
+    "max_salary": 156000,
+    "median_salary": 120000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Business Analyst",
+    "level": "mid",
+    "min_salary": 60000,
+    "max_salary": 96000,
+    "median_salary": 78000,
+    "currency": "SGD",
+    "location": "Singapore"
+  }
+]
