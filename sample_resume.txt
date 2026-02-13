@@ -1,0 +1,6 @@
+Name: John Tan
+Role: Senior Software Engineer
+Experience: 5 years
+Skills: Python, Angular, Spring Boot, SQL, AWS, Docker
+Location: Singapore
+Summary: Passionate backend developer with experience building scalable web systems.

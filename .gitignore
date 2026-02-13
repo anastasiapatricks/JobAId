@@ -1,0 +1,14 @@
+.DS_Store
+.claude/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env
+.env.local
+chroma_data/
+chroma_db/
+*.egg-info/
+dist/
+build/

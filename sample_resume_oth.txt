@@ -1,0 +1,4 @@
+Candidate - Sarah Lim
+6+ years of experience in Java, Spring Boot, Kafka, PostgreSQL, Redis, and AWS ECS.
+Currently based in Singapore. 
+Looking for backend engineering roles.
