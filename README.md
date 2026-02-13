@@ -1,6 +1,6 @@
 # JobAId — LLM-Powered Multi-Agent Job Search Assistant
 
-An AI-powered job search assistant built with **LangGraph**, **LangChain**, **ChromaDB**, and **FastAPI**. JobAId parses resumes using LLM-based NLP, discovers and ranks jobs via semantic matching, provides market intelligence with RAG-powered upskilling recommendations, and generates tailored cover letters through multi-step prompt chaining.
+An AI-powered job search assistant built with **LangGraph**, **LangChain**, **ChromaDB**, **FastAPI**, and an **Angular 20** chat-based frontend. JobAId parses resumes using LLM-based NLP, discovers and ranks jobs via semantic matching, provides market intelligence with RAG-powered upskilling recommendations, and generates tailored cover letters through multi-step prompt chaining.
 
 ## Overview
 
@@ -59,7 +59,7 @@ Review stages are optional HITL (Human-in-the-Loop) checkpoints.
 - **Guardrails** — prompt injection detection, PII sanitisation, input/output validation, bounded autonomy (max 20 iterations, max 50 LLM calls)
 - **De-biasing** — PII (name, email, phone, gender indicators) stripped before downstream processing
 - **Grounded summarisation** — summariser uses only structured state data, temperature=0, with decision log
-- **Dual interface** — CLI and FastAPI REST API
+- **Three-tier architecture** — Angular 20 chat UI, FastAPI REST API, and CLI
 
 ## Setup Instructions
 
@@ -111,13 +111,33 @@ You will be prompted to:
 
 The pipeline will run all agents and display results including job matches, skill gaps, upskilling roadmap, salary insights, and a generated cover letter.
 
-### 5. Run the API Server
+### 5. Run the API Server (Backend)
 
 ```bash
 uv run uvicorn api.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
 The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
+
+### 6. Run the Frontend
+
+Requires **Node.js 24+** and **npm 11+**.
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+The Angular dev server will start at `http://localhost:4200`. It connects to the backend at `http://localhost:8000` — make sure the API server (step 5) is running first.
+
+#### Frontend Chat Flow
+
+1. The app opens with a welcome message and prompts you to upload a resume
+2. Drag-and-drop a file (PDF/TXT), use the file picker, or paste resume text directly
+3. Enter a job query (e.g. "python backend engineer in Singapore")
+4. The pipeline runs — a progress stepper shows real-time stage updates as the backend polls
+5. Results appear inline in the chat: executive summary, ranked job matches with score badges, skill gap chips, upskilling roadmap, salary range bar, cover letter with copy button, and an expandable decision log
 
 #### API Endpoints
 
@@ -200,6 +220,26 @@ PracticeModule-Team31/
 │       ├── pipeline.py          # Run, status, approve, results
 │       ├── resume.py            # Resume file upload
 │       └── health.py            # Health check
+├── frontend/                    # Angular 20 chat-based UI
+│   ├── src/app/
+│   │   ├── app.ts               # Shell: toolbar + router-outlet
+│   │   ├── app.config.ts        # Providers: router, httpClient, animations
+│   │   ├── app.routes.ts        # Routes: / and /session/:id
+│   │   ├── core/
+│   │   │   ├── models/          # TypeScript interfaces (session, pipeline, results, resume)
+│   │   │   ├── services/        # ApiService, SessionService, PipelineService, ChatService
+│   │   │   └── interceptors/    # API URL interceptor (prepends backend base URL)
+│   │   ├── features/
+│   │   │   ├── chat/            # Chat page, message list, message bubble, input, typing indicator
+│   │   │   ├── resume/          # Resume upload (drag-drop + paste) and preview
+│   │   │   ├── pipeline/        # Pipeline progress stepper (5 stages)
+│   │   │   └── results/         # Job cards, skill gaps, upskilling roadmap, salary bar,
+│   │   │                        #   cover letter, summary, decision log
+│   │   ├── shared/              # Toolbar, file drop zone, copy button, auto-scroll directive,
+│   │   │                        #   score-color pipe
+│   │   └── environments/        # Dev (localhost:8000) and prod API URLs
+│   ├── angular.json
+│   └── package.json
 ├── cli/
 │   └── main.py                  # CLI entry point
 ├── data/
@@ -228,6 +268,8 @@ Salary benchmarks (18 entries) are loaded as structured JSON from `data/seed_sal
 
 ## Dependencies
 
+### Backend (Python 3.12+)
+
 - **LangGraph / LangChain** — multi-agent orchestration
 - **langchain-openai** — OpenAI LLM and embedding integration
 - **ChromaDB** — vector database for RAG
@@ -236,6 +278,13 @@ Salary benchmarks (18 entries) are loaded as structured JSON from `data/seed_sal
 - **httpx** — HTTP client (Adzuna API)
 - **beautifulsoup4** — HTML parsing
 - **python-dotenv** — environment variable management
+
+### Frontend (Node.js 24+)
+
+- **Angular 20** — standalone components, signals, control flow syntax
+- **Angular Material 20** — Material 3 design components (toolbar, cards, chips, stepper, expansion panels)
+- **RxJS** — polling pipeline status with `interval` + `switchMap`
+- **TypeScript 5.9** — strict mode
 
 ## Credits
 

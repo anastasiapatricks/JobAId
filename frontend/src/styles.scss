@@ -1,0 +1,88 @@
+@use '@angular/material' as mat;
+
+html {
+  @include mat.theme((
+    color: (
+      primary: mat.$violet-palette,
+      tertiary: mat.$cyan-palette,
+    ),
+    typography: Roboto,
+    density: 0,
+  ));
+}
+
+body {
+  color-scheme: light;
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  margin: 0;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+  overflow: hidden;
+}
+
+// Score color utility classes
+.score-high {
+  color: #2e7d32;
+  background-color: #e8f5e9;
+}
+.score-medium {
+  color: #f57f17;
+  background-color: #fff8e1;
+}
+.score-low {
+  color: #c62828;
+  background-color: #ffebee;
+}
+
+// Importance color classes for chips
+.importance-high {
+  --mat-chip-label-text-color: #c62828;
+  background-color: #ffebee !important;
+}
+.importance-medium {
+  --mat-chip-label-text-color: #f57f17;
+  background-color: #fff8e1 !important;
+}
+.importance-low {
+  --mat-chip-label-text-color: #1565c0;
+  background-color: #e3f2fd !important;
+}
+
+// Scrollbar styling
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+// Smooth transitions
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Responsive helpers
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+@media (min-width: 769px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
