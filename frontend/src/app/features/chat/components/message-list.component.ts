@@ -19,6 +19,12 @@ import { AutoScrollDirective } from '../../../shared/directives/auto-scroll.dire
     </div>
   `,
   styles: `
+    :host {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
     .message-list {
       flex: 1;
       overflow-y: auto;

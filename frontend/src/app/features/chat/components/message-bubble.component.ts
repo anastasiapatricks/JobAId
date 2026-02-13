@@ -17,41 +17,44 @@ import { ResultsContainerComponent } from '../../results/results-container.compo
           <mat-icon>smart_toy</mat-icon>
         </div>
       }
-      <div class="bubble" [class.wide]="message.type === 'results' || message.type === 'stageUpdate' || message.type === 'resume'">
-        @switch (message.type) {
-          @case ('welcome') {
-            <div class="welcome-text">
-              <mat-icon class="welcome-icon">waving_hand</mat-icon>
-              <p>{{ message.text }}</p>
-            </div>
+      @if (message.type === 'results') {
+        <div class="results-bubble">
+          @if (message.results) {
+            <jobaid-results-container [results]="message.results"></jobaid-results-container>
           }
-          @case ('text') {
-            <p class="text-content">{{ message.text }}</p>
-          }
-          @case ('resume') {
-            <jobaid-resume-preview
-              [resumeText]="message.resumeText || ''"
-              [fileName]="message.fileName"
-            ></jobaid-resume-preview>
-          }
-          @case ('stageUpdate') {
-            @if (message.stageStatus) {
-              <jobaid-pipeline-progress [currentStage]="message.stageStatus.current_stage"></jobaid-pipeline-progress>
+        </div>
+      } @else {
+        <div class="bubble" [class.wide]="message.type === 'stageUpdate' || message.type === 'resume'">
+          @switch (message.type) {
+            @case ('welcome') {
+              <div class="welcome-text">
+                <mat-icon class="welcome-icon">waving_hand</mat-icon>
+                <p>{{ message.text }}</p>
+              </div>
+            }
+            @case ('text') {
+              <p class="text-content">{{ message.text }}</p>
+            }
+            @case ('resume') {
+              <jobaid-resume-preview
+                [resumeText]="message.resumeText || ''"
+                [fileName]="message.fileName"
+              ></jobaid-resume-preview>
+            }
+            @case ('stageUpdate') {
+              @if (message.stageStatus) {
+                <jobaid-pipeline-progress [currentStage]="message.stageStatus.current_stage"></jobaid-pipeline-progress>
+              }
+            }
+            @case ('error') {
+              <div class="error-content">
+                <mat-icon>error_outline</mat-icon>
+                <p>{{ message.text }}</p>
+              </div>
             }
           }
-          @case ('results') {
-            @if (message.results) {
-              <jobaid-results-container [results]="message.results"></jobaid-results-container>
-            }
-          }
-          @case ('error') {
-            <div class="error-content">
-              <mat-icon>error_outline</mat-icon>
-              <p>{{ message.text }}</p>
-            </div>
-          }
-        }
-      </div>
+        </div>
+      }
       @if (message.sender === 'user') {
         <div class="avatar user-avatar">
           <mat-icon>person</mat-icon>
@@ -93,6 +96,7 @@ import { ResultsContainerComponent } from '../../results/results-container.compo
       padding: 12px 16px;
       border-radius: 18px;
       line-height: 1.5;
+      overflow: hidden;
     }
     .bubble.wide {
       max-width: 85%;
@@ -105,6 +109,11 @@ import { ResultsContainerComponent } from '../../results/results-container.compo
       background: var(--mat-sys-primary-container);
       color: var(--mat-sys-on-primary-container);
       border-radius: 18px 18px 4px 18px;
+    }
+    .results-bubble {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 0;
     }
     .text-content {
       margin: 0;

@@ -39,12 +39,13 @@ import { SalaryInsights } from '../../../core/models/results.model';
               <span>Max</span>
             </div>
           </div>
-          <p class="source">Source: {{ salary.source }} | Currency: {{ salary.currency }}</p>
+          <p class="source">Source: {{ salary.source || 'N/A' }} | Currency: {{ salary.currency || 'SGD' }}</p>
         </mat-card-content>
       </mat-card>
     }
   `,
   styles: `
+    :host { display: block; width: 100%; }
     .section-header {
       display: flex;
       align-items: center;
@@ -112,8 +113,8 @@ export class SalaryInsightsComponent {
     return ((this.salary.median_salary - this.salary.min_salary) / range) * 100;
   }
 
-  formatSalary(value: number | null): string {
-    if (value === null || value === undefined) return 'N/A';
+  formatSalary(value: number | null | undefined): string {
+    if (value == null) return 'N/A';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: this.salary?.currency || 'SGD',

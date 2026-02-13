@@ -32,10 +32,10 @@ import { ScoredJob } from '../../../core/models/results.model';
         @if (job.explanation) {
           <p class="explanation">{{ job.explanation }}</p>
         }
-        @if (job.keywords.length) {
+        @if (job.keywords?.length) {
           <div class="keywords">
             <mat-chip-set>
-              @for (keyword of job.keywords; track keyword) {
+              @for (keyword of job.keywords!; track keyword) {
                 <mat-chip>{{ keyword }}</mat-chip>
               }
             </mat-chip-set>
@@ -52,6 +52,7 @@ import { ScoredJob } from '../../../core/models/results.model';
     </mat-card>
   `,
   styles: `
+    :host { display: block; width: 100%; }
     .job-card {
       margin-bottom: 12px;
     }

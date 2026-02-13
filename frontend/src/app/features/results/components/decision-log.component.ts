@@ -32,6 +32,7 @@ import { DecisionLogEntry } from '../../../core/models/results.model';
     </mat-expansion-panel>
   `,
   styles: `
+    :host { display: block; width: 100%; }
     .decision-log {
       margin-bottom: 16px;
     }

@@ -20,6 +20,7 @@ import { CopyButtonComponent } from '../../../shared/components/copy-button.comp
     </mat-card>
   `,
   styles: `
+    :host { display: block; width: 100%; }
     .section-header {
       display: flex;
       align-items: center;

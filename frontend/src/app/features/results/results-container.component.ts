@@ -27,16 +27,16 @@ import { DecisionLogComponent } from './components/decision-log.component';
           <jobaid-summary-card [summary]="results.summary"></jobaid-summary-card>
         }
 
-        @if (results.scored_jobs.length) {
-          <jobaid-job-list [jobs]="results.scored_jobs"></jobaid-job-list>
+        @if (results.scored_jobs?.length) {
+          <jobaid-job-list [jobs]="results.scored_jobs!"></jobaid-job-list>
         }
 
-        @if (results.skill_gaps.length) {
-          <jobaid-skill-gaps [skillGaps]="results.skill_gaps"></jobaid-skill-gaps>
+        @if (results.skill_gaps?.length) {
+          <jobaid-skill-gaps [skillGaps]="results.skill_gaps!"></jobaid-skill-gaps>
         }
 
-        @if (results.upskilling_roadmap.length) {
-          <jobaid-upskilling-roadmap [roadmap]="results.upskilling_roadmap"></jobaid-upskilling-roadmap>
+        @if (results.upskilling_roadmap?.length) {
+          <jobaid-upskilling-roadmap [roadmap]="results.upskilling_roadmap!"></jobaid-upskilling-roadmap>
         }
 
         @if (results.salary_insights) {
@@ -47,17 +47,22 @@ import { DecisionLogComponent } from './components/decision-log.component';
           <jobaid-cover-letter [pitch]="results.final_pitch"></jobaid-cover-letter>
         }
 
-        @if (results.decision_log.length) {
-          <jobaid-decision-log [entries]="results.decision_log"></jobaid-decision-log>
+        @if (results.decision_log?.length) {
+          <jobaid-decision-log [entries]="results.decision_log!"></jobaid-decision-log>
         }
       </div>
     }
   `,
   styles: `
+    :host {
+      display: block;
+      width: 100%;
+    }
     .results-container {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 16px;
+      width: 100%;
     }
   `,
 })

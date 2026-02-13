@@ -27,6 +27,7 @@ import { SkillGap } from '../../../core/models/results.model';
     }
   `,
   styles: `
+    :host { display: block; width: 100%; }
     .section-header {
       display: flex;
       align-items: center;

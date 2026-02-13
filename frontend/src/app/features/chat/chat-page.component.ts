@@ -38,16 +38,24 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'awaiting_query' | 'running' | 
     </div>
   `,
   styles: `
+    :host {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
     .chat-page {
       display: flex;
       flex-direction: column;
-      height: calc(100vh - 64px);
+      flex: 1;
+      overflow: hidden;
       max-width: 900px;
       margin: 0 auto;
       width: 100%;
     }
     .upload-section {
       padding: 0 16px 8px;
+      flex-shrink: 0;
     }
     @media (max-width: 768px) {
       .chat-page {

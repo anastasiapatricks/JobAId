@@ -18,6 +18,7 @@ import { MatIconModule } from '@angular/material/icon';
     </mat-card>
   `,
   styles: `
+    :host { display: block; width: 100%; }
     .summary-card {
       margin-bottom: 16px;
     }

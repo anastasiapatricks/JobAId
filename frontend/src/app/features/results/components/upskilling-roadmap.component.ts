@@ -23,9 +23,9 @@ import { UpskillingItem } from '../../../core/models/results.model';
               <span class="time-estimate">{{ item.estimated_time }}</span>
             }
           </div>
-          @if (item.recommended_courses.length) {
+          @if (item.recommended_courses?.length) {
             <mat-list class="course-list">
-              @for (course of item.recommended_courses; track course) {
+              @for (course of item.recommended_courses!; track course) {
                 <mat-list-item>
                   <mat-icon matListItemIcon>play_circle</mat-icon>
                   <span>{{ course }}</span>
@@ -38,6 +38,7 @@ import { UpskillingItem } from '../../../core/models/results.model';
     }
   `,
   styles: `
+    :host { display: block; width: 100%; }
     .section-header {
       display: flex;
       align-items: center;
