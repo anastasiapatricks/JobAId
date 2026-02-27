@@ -1,17 +1,20 @@
 """Pipeline execution endpoints — run, status, approve, results, step."""
 
 import threading
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from models.api_models import (
     PipelineRunRequest,
     PipelineStatusResponse,
     ApprovalRequest,
     PipelineResultsResponse,
+    ResultEntry,
     StepRequest,
     StepResponse,
 )
 from api.dependencies import get_session, update_session, get_graph
 from agents.orchestrator import reset_autonomy, interpret_user_intent
+from utils import get_latest_results
 from graph.nodes import (
     resume_parser_node,
     job_discovery_node,
@@ -43,6 +46,10 @@ def _run_pipeline(session_id: str, state: dict):
         update_session(session_id, status="error", state={"error": str(exc)})
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _run_single_step(session_id: str, action: str, state: dict):
     """Run a single agent node in a background thread, then set status back to awaiting_input."""
     try:
@@ -54,9 +61,15 @@ def _run_single_step(session_id: str, action: str, state: dict):
         state["last_action"] = action
         result = node_fn(state)
 
-        # Merge result into existing state
-        merged = {**state, **result}
-        update_session(session_id, status="awaiting_input", state=merged, result=merged)
+        # Append result to the results array instead of merging flat
+        results_arr = list(state.get("results", []))
+        entry = {"action": action, "timestamp": _now_iso()}
+        for k, v in result.items():
+            if k != "messages":
+                entry[k] = v
+        results_arr.append(entry)
+        state["results"] = results_arr
+        update_session(session_id, status="awaiting_input", state=state, result=state)
     except Exception as exc:
         errors = list(state.get("errors") or [])
         errors.append({"stage": action, "error": str(exc)})
@@ -88,6 +101,7 @@ async def run_pipeline(session_id: str, req: PipelineRunRequest, background_task
         "decision_log": [],
         "errors": [],
         "fallback_used": [],
+        "results": existing_state.get("results", []),
     }
 
     # Only run resume parsing, then await user input
@@ -96,8 +110,21 @@ async def run_pipeline(session_id: str, req: PipelineRunRequest, background_task
     def _parse_and_await():
         try:
             result = resume_parser_node(initial_state)
-            merged = {**initial_state, **result}
-            update_session(session_id, status="awaiting_input", state=merged, result=merged)
+            # Append parse result to the results array
+            results_arr = list(initial_state.get("results", []))
+            entry = {"action": "parsing", "timestamp": _now_iso()}
+            for k, v in result.items():
+                if k != "messages":
+                    entry[k] = v
+            results_arr.append(entry)
+            initial_state["results"] = results_arr
+            initial_state["last_action"] = "parsing"
+            # Also keep resume_info at top level for quick access
+            if result.get("resume_info"):
+                initial_state["resume_info"] = result["resume_info"]
+            if result.get("resume_debiased"):
+                initial_state["resume_debiased"] = result["resume_debiased"]
+            update_session(session_id, status="awaiting_input", state=initial_state, result=initial_state)
         except Exception as exc:
             update_session(session_id, status="error", state={"error": str(exc)})
 
@@ -141,12 +168,14 @@ async def step(session_id: str, req: StepRequest):
     # For pitching: reorder scored_jobs so target is at index 0
     if action == "pitching":
         target_idx = parameters.get("target_job_index")
-        scored_jobs = state.get("scored_jobs") or []
+        latest = get_latest_results(state)
+        scored_jobs = list(latest.get("scored_jobs") or [])
         if scored_jobs and target_idx is not None and isinstance(target_idx, int):
             if 0 <= target_idx < len(scored_jobs):
                 target_job = scored_jobs.pop(target_idx)
                 scored_jobs.insert(0, target_job)
-                state["scored_jobs"] = scored_jobs
+        # Store reordered scored_jobs at top level so the agent can read it
+        state["scored_jobs"] = scored_jobs
 
     # Set running and launch agent in background thread
     state["last_action"] = action
@@ -200,19 +229,17 @@ async def get_results(session_id: str):
         raise HTTPException(status_code=404, detail="Session not found")
 
     state = session.get("result") or session.get("state", {})
+    raw_results = state.get("results", [])
+
+    # Convert raw dicts to ResultEntry models
+    result_entries = []
+    for entry in raw_results:
+        result_entries.append(ResultEntry(**entry))
 
     return PipelineResultsResponse(
         session_id=session_id,
         status=session["status"],
         last_action=state.get("last_action"),
         resume_info=state.get("resume_info"),
-        scored_jobs=state.get("scored_jobs", []),
-        skill_gaps=state.get("skill_gaps", []),
-        upskilling_roadmap=state.get("upskilling_roadmap", []),
-        salary_insights=state.get("salary_insights"),
-        industry_trends=state.get("industry_trends", []),
-        market_outlook=state.get("market_outlook"),
-        final_pitch=state.get("final_pitch"),
-        summary=state.get("summary"),
-        decision_log=state.get("decision_log", []),
+        results=result_entries,
     )

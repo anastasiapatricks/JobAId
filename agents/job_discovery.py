@@ -14,7 +14,7 @@ from config.settings import settings
 from config.prompts import JOB_DISCOVERY_SYSTEM
 from tools.job_board_api import search_jobs
 from tools.chromadb_tools import upsert_jobs, search_collection
-from utils import debug
+from utils import debug, get_latest_results
 
 
 def _parse_json_response(text: str) -> Any:
@@ -33,7 +33,8 @@ def _parse_json_response(text: str) -> Any:
 
 def _build_resume_summary(state: Dict[str, Any]) -> str:
     """Build a text summary of the candidate from resume_info."""
-    info = state.get("resume_debiased") or state.get("resume_info") or {}
+    latest = get_latest_results(state)
+    info = latest.get("resume_debiased") or state.get("resume_debiased") or latest.get("resume_info") or state.get("resume_info") or {}
     parts = []
 
     skills = info.get("skills", {})
@@ -101,7 +102,8 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     job_query = state.get("job_query", "")
     location = state.get("location_preference", "")
-    resume_info = state.get("resume_debiased") or state.get("resume_info") or {}
+    latest = get_latest_results(state)
+    resume_info = latest.get("resume_debiased") or state.get("resume_debiased") or latest.get("resume_info") or state.get("resume_info") or {}
 
     # Step 1: Search for jobs
     debug(f"Job Discovery: searching for '{job_query}'")

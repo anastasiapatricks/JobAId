@@ -10,7 +10,7 @@ from config.settings import settings
 from config.prompts import MARKET_INTELLIGENCE_SYSTEM
 from tools.chromadb_tools import search_collection
 from tools.tavily_search import search_courses, search_trends, search_salary
-from utils import debug
+from utils import debug, get_latest_results
 
 
 def _parse_json_response(text: str) -> dict:
@@ -28,7 +28,8 @@ def _parse_json_response(text: str) -> dict:
 
 def _get_candidate_skills(state: Dict[str, Any]) -> List[str]:
     """Extract flat skill list from resume info."""
-    info = state.get("resume_debiased") or state.get("resume_info") or {}
+    latest = get_latest_results(state)
+    info = latest.get("resume_debiased") or state.get("resume_debiased") or latest.get("resume_info") or state.get("resume_info") or {}
     skills = info.get("skills", {})
     if isinstance(skills, dict):
         return skills.get("technical", []) + skills.get("soft", []) + skills.get("certifications", [])
@@ -39,7 +40,8 @@ def _get_candidate_skills(state: Dict[str, Any]) -> List[str]:
 
 def _get_top_job_requirements(state: Dict[str, Any]) -> List[str]:
     """Collect required skills from top scored jobs."""
-    scored = state.get("scored_jobs") or []
+    latest = get_latest_results(state)
+    scored = latest.get("scored_jobs") or state.get("scored_jobs") or []
     all_kws: List[str] = []
     for job in scored[:5]:
         all_kws.extend(job.get("keywords", []))
@@ -105,7 +107,8 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
     candidate_skills = _get_candidate_skills(state)
     job_requirements = _get_top_job_requirements(state)
     job_query = state.get("job_query", "")
-    resume_info = state.get("resume_info") or {}
+    latest = get_latest_results(state)
+    resume_info = latest.get("resume_info") or state.get("resume_info") or {}
     years_exp = resume_info.get("years_of_experience")
 
     # --- Courses: Tavily first, RAG fallback ---

@@ -120,17 +120,47 @@ Return the improved version of the cover letter. Only return the letter text, no
 SUMMARIZER_SYSTEM = """\
 You are a career advisor generating a final report for a job search session.
 
-Summarize the results using ONLY the structured data provided. Do NOT add any information \
-that is not present in the data. Do NOT speculate or make assumptions.
+## Data format
+
+The session data is JSON containing a `results` array. Each entry has an `action` field \
+indicating which agent produced it, and a `timestamp`. The user may have run the same agent \
+multiple times during the session, so there can be multiple entries with the same action. \
+You MUST cover ALL entries — do not skip or merge duplicates.
+
+Action types:
+- `parsing` — resume parsing output (`resume_info`, `parsing_confidence`, etc.)
+- `discovery` — job search results (`scored_jobs`, `matching_explanation`, etc.)
+- `market_intel` — market analysis (`skill_gaps`, `upskilling_roadmap`, `salary_insights`, `industry_trends`)
+- `pitching` — cover letter generation (`final_pitch`, `draft_pitches`)
+- `summarizing` — previous summary (can be ignored)
+
+Top-level fields like `resume_info`, `job_query`, `location_preference` provide additional context.
+
+## Instructions
+
+Summarize the results using ONLY the data provided. Do NOT add information that is not \
+present. Do NOT speculate or make assumptions.
 
 Structure your summary as:
-1. Resume Overview — key skills and experience extracted
-2. Job Matches — top ranked positions with scores and reasoning
-3. Market Intelligence — skill gaps, upskilling recommendations, salary insights
-4. Application Materials — cover letter highlights
-5. Recommended Next Steps — actionable items for the candidate
 
-Be concise, factual, and grounded. Every claim must reference the source data."""
+1. **Resume Overview** — key skills, experience, and qualifications extracted from the resume.
+
+2. **Job Matches** — for EACH discovery run, list the top ranked positions with scores and \
+reasoning. If there were multiple job searches, present them separately (e.g. "Search 1: ...", \
+"Search 2: ...") so the user can see all results.
+
+3. **Market Intelligence** — for EACH market_intel run, summarize skill gaps, upskilling \
+recommendations, salary insights, and industry trends. Present multiple runs separately if applicable.
+
+4. **Application Materials** — for EACH cover letter generated, summarize its key talking \
+points, which role/company it targets, and what strengths it highlights. If multiple cover \
+letters were generated, present each one separately. Do NOT just report character counts — \
+describe the actual content.
+
+5. **Recommended Next Steps** — actionable items for the candidate based on all the data.
+
+Format your output in Markdown. Use headings (##), bold, bullet lists, and numbered lists \
+for readability. Be concise, factual, and grounded. Every claim must reference the source data."""
 
 ORCHESTRATOR_SYSTEM = """\
 You are the orchestrator of a job search AI assistant. Your role is to determine the next \

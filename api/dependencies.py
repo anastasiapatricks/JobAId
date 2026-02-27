@@ -22,10 +22,12 @@ def get_graph():
 def create_session(initial_data: Dict[str, Any] | None = None) -> str:
     """Create a new session and return its ID."""
     session_id = str(uuid.uuid4())
+    state = initial_data or {}
+    state.setdefault("results", [])
     _sessions[session_id] = {
         "session_id": session_id,
         "status": "created",
-        "state": initial_data or {},
+        "state": state,
         "result": None,
     }
     return session_id

@@ -11,7 +11,7 @@ from models.state import JobAIdState, OrchestratorStage
 from guardrails.bounded_autonomy import BoundedAutonomy
 from config.settings import settings
 from config.prompts import ORCHESTRATOR_ROUTER_SYSTEM
-from utils import debug
+from utils import debug, get_latest_results
 
 # Valid FSM transitions: current_stage → set of allowed next stages
 TRANSITIONS: Dict[str, list] = {
@@ -59,16 +59,17 @@ def _log_decision(state: JobAIdState, stage: str, action: str, reasoning: str) -
 
 def _is_stage_complete(state: JobAIdState, stage: str) -> bool:
     """Check whether the outputs required by a stage are present."""
+    latest = get_latest_results(state)
     if stage == "parsing":
-        return bool(state.get("resume_info"))
+        return bool(latest.get("resume_info") or state.get("resume_info"))
     if stage == "discovery":
-        return bool(state.get("scored_jobs"))
+        return bool(latest.get("scored_jobs") or state.get("scored_jobs"))
     if stage == "market_intel":
-        return bool(state.get("skill_gaps"))
+        return bool(latest.get("skill_gaps") or state.get("skill_gaps"))
     if stage == "pitching":
-        return bool(state.get("final_pitch"))
+        return bool(latest.get("final_pitch") or state.get("final_pitch"))
     if stage == "summarizing":
-        return bool(state.get("summary"))
+        return bool(latest.get("summary") or state.get("summary"))
     # Review stages are "complete" once human feedback arrives or is skipped
     if stage in REVIEW_STAGES:
         return True
@@ -170,8 +171,9 @@ def handle_stage_error(state: JobAIdState, stage: str, error: str) -> Dict[str, 
 def _build_state_summary(state: dict) -> str:
     """Build a human-readable summary of what data exists in the state."""
     parts = []
+    latest = get_latest_results(state)
 
-    resume_info = state.get("resume_info")
+    resume_info = latest.get("resume_info") or state.get("resume_info")
     if resume_info:
         name = (resume_info.get("contact_info") or {}).get("name", "Unknown")
         skills = (resume_info.get("skills") or {}).get("technical", [])
@@ -179,7 +181,7 @@ def _build_state_summary(state: dict) -> str:
     else:
         parts.append("Resume: not yet parsed")
 
-    scored_jobs = state.get("scored_jobs") or []
+    scored_jobs = latest.get("scored_jobs") or state.get("scored_jobs") or []
     if scored_jobs:
         parts.append(f"Scored jobs ({len(scored_jobs)} found):")
         for i, job in enumerate(scored_jobs):
@@ -190,17 +192,17 @@ def _build_state_summary(state: dict) -> str:
     else:
         parts.append("Scored jobs: none yet")
 
-    if state.get("skill_gaps"):
+    if latest.get("skill_gaps") or state.get("skill_gaps"):
         parts.append("Market intelligence: available")
     else:
         parts.append("Market intelligence: not yet run")
 
-    if state.get("final_pitch"):
+    if latest.get("final_pitch") or state.get("final_pitch"):
         parts.append("Cover letter/pitch: generated")
     else:
         parts.append("Cover letter/pitch: not yet generated")
 
-    if state.get("summary"):
+    if latest.get("summary") or state.get("summary"):
         parts.append("Summary: generated")
     else:
         parts.append("Summary: not yet generated")

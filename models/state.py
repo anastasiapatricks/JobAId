@@ -61,3 +61,6 @@ class JobAIdState(TypedDict, total=False):
     decision_log: List[Dict[str, Any]]
     errors: List[Dict[str, Any]]
     fallback_used: List[str]
+
+    # Results array — every agent run appends an entry
+    results: List[Dict[str, Any]]

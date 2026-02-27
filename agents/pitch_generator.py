@@ -15,7 +15,7 @@ from config.prompts import (
 )
 from tools.tavily_search import search_company
 from tools.wikipedia import get_company_summary
-from utils import debug
+from utils import debug, get_latest_results
 
 
 def _parse_json_response(text: str) -> dict:
@@ -32,10 +32,11 @@ def _parse_json_response(text: str) -> dict:
 
 def _get_best_job(state: Dict[str, Any]) -> Dict[str, Any]:
     """Get the top-scored job from state."""
-    scored = state.get("scored_jobs") or []
+    latest = get_latest_results(state)
+    scored = state.get("scored_jobs") or latest.get("scored_jobs") or []
     if scored:
         return scored[0]
-    listings = state.get("job_listings") or []
+    listings = latest.get("job_listings") or state.get("job_listings") or []
     if listings:
         return listings[0]
     return {}
@@ -43,7 +44,8 @@ def _get_best_job(state: Dict[str, Any]) -> Dict[str, Any]:
 
 def _build_candidate_summary(state: Dict[str, Any]) -> str:
     """Build a text summary of the candidate."""
-    info = state.get("resume_info") or {}
+    latest = get_latest_results(state)
+    info = latest.get("resume_info") or state.get("resume_info") or {}
     parts = []
 
     contact = info.get("contact_info", {})

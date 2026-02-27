@@ -38,18 +38,31 @@ export interface DecisionLogEntry {
   timestamp?: string;
 }
 
-export interface PipelineResults {
-  session_id: string;
-  status: string;
-  last_action?: string;
-  resume_info?: Record<string, unknown> | null;
+export interface ResultEntry {
+  action: string;
+  timestamp: string;
   scored_jobs?: ScoredJob[];
+  matching_explanation?: string[];
+  job_listings?: Record<string, unknown>[];
   skill_gaps?: SkillGap[];
   upskilling_roadmap?: UpskillingItem[];
   salary_insights?: SalaryInsights | null;
   industry_trends?: string[];
   market_outlook?: string | null;
+  draft_pitches?: Record<string, unknown>[];
   final_pitch?: string | null;
   summary?: string | null;
-  decision_log?: DecisionLogEntry[];
+  resume_info?: Record<string, unknown> | null;
+  resume_debiased?: Record<string, unknown> | null;
+  parsing_confidence?: number | null;
+  missing_fields?: string[];
+  [key: string]: unknown;
+}
+
+export interface PipelineResults {
+  session_id: string;
+  status: string;
+  last_action?: string;
+  resume_info?: Record<string, unknown> | null;
+  results: ResultEntry[];
 }

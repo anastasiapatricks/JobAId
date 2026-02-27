@@ -232,8 +232,9 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         },
         onAwaitingInput: (results) => {
           this.chat.setTyping(false);
-          // Show results filtered by action
-          this.chat.addResults(results, lastAction || results.last_action || '');
+          // Show the latest result entry filtered by action
+          const action = lastAction || results.last_action || '';
+          this.chat.addResults(results, action);
           this.state = 'awaiting_input';
         },
         onError: (error) => {

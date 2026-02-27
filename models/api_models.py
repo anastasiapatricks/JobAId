@@ -34,20 +34,34 @@ class ApprovalRequest(BaseModel):
     feedback: Optional[str] = None
 
 
+class ResultEntry(BaseModel):
+    action: str
+    timestamp: str
+    scored_jobs: Optional[List[Dict[str, Any]]] = None
+    matching_explanation: Optional[List[str]] = None
+    job_listings: Optional[List[Dict[str, Any]]] = None
+    skill_gaps: Optional[List[Dict[str, Any]]] = None
+    upskilling_roadmap: Optional[List[Dict[str, Any]]] = None
+    salary_insights: Optional[Dict[str, Any]] = None
+    industry_trends: Optional[List[str]] = None
+    market_outlook: Optional[str] = None
+    draft_pitches: Optional[List[Dict[str, Any]]] = None
+    final_pitch: Optional[str] = None
+    summary: Optional[str] = None
+    resume_info: Optional[Dict[str, Any]] = None
+    resume_debiased: Optional[Dict[str, Any]] = None
+    parsing_confidence: Optional[float] = None
+    missing_fields: Optional[List[str]] = None
+
+    model_config = {"extra": "allow"}
+
+
 class PipelineResultsResponse(BaseModel):
     session_id: str
     status: str
     last_action: Optional[str] = None
     resume_info: Optional[Dict[str, Any]] = None
-    scored_jobs: List[Dict[str, Any]] = Field(default_factory=list)
-    skill_gaps: List[Dict[str, Any]] = Field(default_factory=list)
-    upskilling_roadmap: List[Dict[str, Any]] = Field(default_factory=list)
-    salary_insights: Optional[Dict[str, Any]] = None
-    industry_trends: List[str] = Field(default_factory=list)
-    market_outlook: Optional[str] = None
-    final_pitch: Optional[str] = None
-    summary: Optional[str] = None
-    decision_log: List[Dict[str, Any]] = Field(default_factory=list)
+    results: List[ResultEntry] = Field(default_factory=list)
 
 
 class StepRequest(BaseModel):
