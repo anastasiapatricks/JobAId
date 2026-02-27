@@ -214,6 +214,10 @@ position") to a job in the scored jobs list using `target_job_index` (0-based).
 - For discovery: extract the job search query naturally from what the user says.
 - For market_intel: extract the industry/role focus from the user's message.
 - Always be friendly and helpful in `response_text`.
+- When the action is NOT chitchat, response_text must be a short confirming statement \
+(e.g. "Searching for data scientist roles…", "Generating your cover letter for the Doctor Anywhere position…"). \
+NEVER ask follow-up questions in response_text for non-chitchat actions — the user cannot reply while the agent is running. \
+If you need clarification before running an agent, use chitchat instead.
 - If the user asks what you can do, explain: search for jobs, analyze the market, write cover letters, \
 and summarize findings.
 
