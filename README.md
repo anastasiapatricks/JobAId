@@ -13,7 +13,7 @@ JobAId runs a pipeline of 5 specialised agents coordinated by an FSM-based orche
 | **Job Discovery & Matching** | Adzuna API search (MOCK_JOBS fallback), ChromaDB semantic matching, LLM-powered ranking with scoring rubric |
 | **Market Intelligence** | Skill gap analysis, RAG-powered upskilling roadmap with course recommendations, salary benchmarks, industry trends |
 | **Pitch Generator** | 4-step prompt chaining: company research (Wikipedia) → match analysis → draft generation → quality review |
-| **Summarizer** | Grounded explainability — summarises only structured state data, includes decision log for transparency |
+| **Summarizer** | Grounded explainability — feeds full session state (all results) to the LLM, generates markdown report with decision log |
 
 ## Architecture
 
@@ -58,7 +58,9 @@ Review stages are optional HITL (Human-in-the-Loop) checkpoints.
 - **FSM orchestrator** — named stages with valid transitions (not index-based), error recovery, max 2 retries per stage
 - **Guardrails** — prompt injection detection, PII sanitisation, input/output validation, bounded autonomy (max 20 iterations, max 50 LLM calls)
 - **De-biasing** — PII (name, email, phone, gender indicators) stripped before downstream processing
-- **Grounded summarisation** — summariser uses only structured state data, temperature=0, with decision log
+- **Results persistence** — all agent outputs stored in an append-only results array; e.g. running the same agent twice preserves both results
+- **Grounded summarisation** — summariser receives full session state (all results), generates markdown report with decision log
+- **Web search augmentation** — Tavily API for real-time course lookups, trend research, salary data, and company research (with RAG/seed-data fallbacks)
 - **Three-tier architecture** — Angular 20 chat UI, FastAPI REST API, and CLI
 
 ## Setup Instructions
@@ -90,6 +92,9 @@ OPENAI_API_KEY=your_openai_api_key_here
 ADZUNA_APP_ID=your_adzuna_app_id
 ADZUNA_API_KEY=your_adzuna_api_key
 
+# Optional — Tavily web search for courses, trends, salary, company research
+TAVILY_API_KEY=your_tavily_api_key
+
 # Optional
 DEBUG=true
 ```
@@ -98,20 +103,9 @@ Get your OpenAI API key from: https://platform.openai.com/api-keys
 
 Get Adzuna API credentials (free tier, 250 req/day) from: https://developer.adzuna.com/
 
-### 4. Run the CLI
+Get Tavily API key (free tier, 1000 req/month) from: https://tavily.com/
 
-```bash
-uv run python -m cli.main
-```
-
-You will be prompted to:
-1. Enter the path to a resume file (e.g. `sample_resume.txt`)
-2. Enter job search keywords (e.g. `python backend engineer`)
-3. Optionally enter a preferred location
-
-The pipeline will run all agents and display results including job matches, skill gaps, upskilling roadmap, salary insights, and a generated cover letter.
-
-### 5. Run the API Server (Backend)
+### 4. Run the API Server (Backend)
 
 ```bash
 uv run uvicorn api.app:app --reload --host 0.0.0.0 --port 8000
@@ -119,7 +113,7 @@ uv run uvicorn api.app:app --reload --host 0.0.0.0 --port 8000
 
 The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
 
-### 6. Run the Frontend
+### 5. Run the Frontend
 
 Requires **Node.js 24+** and **npm 11+**.
 
@@ -129,15 +123,16 @@ npm install
 npm start
 ```
 
-The Angular dev server will start at `http://localhost:4200`. It connects to the backend at `http://localhost:8000` — make sure the API server (step 5) is running first.
+The Angular dev server will start at `http://localhost:4200`. It connects to the backend at `http://localhost:8000` — make sure the API server (step 4) is running first.
 
 #### Frontend Chat Flow
 
 1. The app opens with a welcome message and prompts you to upload a resume
 2. Drag-and-drop a file (PDF/TXT), use the file picker, or paste resume text directly
-3. Enter a job query (e.g. "python backend engineer in Singapore")
-4. The pipeline runs — a progress stepper shows real-time stage updates as the backend polls
-5. Results appear inline in the chat: executive summary, ranked job matches with score badges, skill gap chips, upskilling roadmap, salary range bar, cover letter with copy button, and an expandable decision log
+3. Your resume is parsed and the assistant greets you with a summary of your skills
+4. Chat naturally — ask to search for jobs, analyze the market, write cover letters, or get a summary
+5. Each agent result appears inline in the chat. You can run the same agent multiple times (e.g. search for different roles, generate multiple cover letters) — all results are preserved
+6. Ask for a summary to get a markdown-formatted report covering everything in the session
 
 #### API Endpoints
 
@@ -149,10 +144,11 @@ The Angular dev server will start at `http://localhost:4200`. It connects to the
 | `GET` | `/api/sessions/{id}` | Get session info |
 | `DELETE` | `/api/sessions/{id}` | Delete a session |
 | `POST` | `/api/sessions/{id}/resume` | Upload a resume file |
-| `POST` | `/api/sessions/{id}/run` | Start the pipeline (async) |
-| `GET` | `/api/sessions/{id}/status` | Poll pipeline progress |
+| `POST` | `/api/sessions/{id}/run` | Parse resume and start session (async) |
+| `POST` | `/api/sessions/{id}/step` | Send a chat message — orchestrator routes to the right agent |
+| `GET` | `/api/sessions/{id}/status` | Poll agent execution progress |
 | `POST` | `/api/sessions/{id}/approve` | HITL approval |
-| `GET` | `/api/sessions/{id}/results` | Get final results |
+| `GET` | `/api/sessions/{id}/results` | Get all results (append-only array of agent outputs) |
 
 #### Example API Usage
 
@@ -163,17 +159,39 @@ curl -X POST http://localhost:8000/api/sessions -H "Content-Type: application/js
 # Upload resume
 curl -X POST http://localhost:8000/api/sessions/{session_id}/resume -F "file=@sample_resume.txt"
 
-# Run pipeline
+# Parse resume (starts async — poll /status until awaiting_input)
 curl -X POST http://localhost:8000/api/sessions/{session_id}/run \
   -H "Content-Type: application/json" \
-  -d '{"resume_text": "Name: John Tan\nSkills: Python, Docker, AWS\nExperience: 5 years", "job_query": "python backend engineer"}'
+  -d '{"resume_text": "Name: John Tan\nSkills: Python, Docker, AWS\nExperience: 5 years", "job_query": ""}'
 
-# Poll status
+# Chat — search for jobs (orchestrator routes to the discovery agent)
+curl -X POST http://localhost:8000/api/sessions/{session_id}/step \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Find python backend engineer jobs in Singapore"}'
+
+# Poll status until awaiting_input
 curl http://localhost:8000/api/sessions/{session_id}/status
 
-# Get results
+# Chat — generate a cover letter
+curl -X POST http://localhost:8000/api/sessions/{session_id}/step \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Write a cover letter for the first job"}'
+
+# Get all results (array of every agent run)
 curl http://localhost:8000/api/sessions/{session_id}/results
 ```
+
+The `/results` endpoint returns an append-only `results` array — each agent run is a separate entry with `action`, `timestamp`, and its output fields. Running the same agent multiple times appends new entries without overwriting previous ones.
+
+### Optional: Run the CLI
+
+The CLI is a standalone alternative to the web UI. It is **not required** to run the backend + frontend.
+
+```bash
+uv run python -m cli.main
+```
+
+You will be prompted to enter a resume file path, job search keywords, and optionally a preferred location. The pipeline will run all agents sequentially and display results in the terminal.
 
 ## Project Structure
 
@@ -197,6 +215,7 @@ PracticeModule-Team31/
 │   ├── job_board_api.py         # Adzuna API integration + MOCK_JOBS fallback
 │   ├── job_scrape.py            # MOCK_JOBS data (23 listings)
 │   ├── wikipedia.py             # Wikipedia REST API with disambiguation fallback
+│   ├── tavily_search.py         # Tavily web search (courses, trends, salary, company)
 │   ├── chromadb_tools.py        # ChromaDB search/upsert helpers
 │   └── pii_sanitizer.py         # PII detection + de-biasing
 ├── vectordb/
@@ -276,6 +295,7 @@ Salary benchmarks (18 entries) are loaded as structured JSON from `data/seed_sal
 - **FastAPI / Uvicorn** — REST API backend
 - **Pydantic / pydantic-settings** — data validation and configuration
 - **httpx** — HTTP client (Adzuna API)
+- **tavily-python** — Tavily web search API (courses, trends, salary, company research)
 - **beautifulsoup4** — HTML parsing
 - **python-dotenv** — environment variable management
 
@@ -283,6 +303,7 @@ Salary benchmarks (18 entries) are loaded as structured JSON from `data/seed_sal
 
 - **Angular 20** — standalone components, signals, control flow syntax
 - **Angular Material 20** — Material 3 design components (toolbar, cards, chips, stepper, expansion panels)
+- **marked** — Markdown rendering for summary reports
 - **RxJS** — polling pipeline status with `interval` + `switchMap`
 - **TypeScript 5.9** — strict mode
 
