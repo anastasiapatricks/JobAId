@@ -13,6 +13,7 @@ from config.prompts import (
     PITCH_DRAFT_SYSTEM,
     PITCH_REVIEW_SYSTEM,
 )
+from tools.tavily_search import search_company
 from tools.wikipedia import get_company_summary
 from utils import debug
 
@@ -103,7 +104,10 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     debug("Pitch Generator: Step 1 — company research")
     company_info = ""
     if company:
-        company_info = get_company_summary(company)
+        company_info = search_company(company)
+        if not company_info:
+            debug("Pitch Generator: Tavily company search empty, falling back to Wikipedia")
+            company_info = get_company_summary(company)
 
     job_context = (
         f"Company: {company}\n"
@@ -115,7 +119,7 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
 
     research_response = llm.invoke([
         SystemMessage(content=PITCH_RESEARCH_SYSTEM),
-        HumanMessage(content=f"{job_context}\n\nWikipedia info:\n{company_info}"),
+        HumanMessage(content=f"{job_context}\n\nCompany info:\n{company_info}"),
     ])
     company_research = research_response.content
 

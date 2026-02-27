@@ -43,9 +43,21 @@ class PipelineResultsResponse(BaseModel):
     upskilling_roadmap: List[Dict[str, Any]] = Field(default_factory=list)
     salary_insights: Optional[Dict[str, Any]] = None
     industry_trends: List[str] = Field(default_factory=list)
+    market_outlook: Optional[str] = None
     final_pitch: Optional[str] = None
     summary: Optional[str] = None
     decision_log: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class StepRequest(BaseModel):
+    message: str
+
+
+class StepResponse(BaseModel):
+    session_id: str
+    status: str          # "running" | "awaiting_input" | "complete"
+    response_text: str   # bot message to display
+    action: str          # what orchestrator decided
 
 
 class ResumeUploadResponse(BaseModel):

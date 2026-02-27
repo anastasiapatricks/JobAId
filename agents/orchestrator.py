@@ -1,10 +1,16 @@
 """FSM-based orchestrator — replaces the old coordinator + participant."""
 
+import json
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
+
+from langchain_openai import ChatOpenAI
+from langchain.schema import SystemMessage, HumanMessage
+
 from models.state import JobAIdState, OrchestratorStage
 from guardrails.bounded_autonomy import BoundedAutonomy
 from config.settings import settings
+from config.prompts import ORCHESTRATOR_ROUTER_SYSTEM
 from utils import debug
 
 # Valid FSM transitions: current_stage → set of allowed next stages
@@ -159,3 +165,95 @@ def handle_stage_error(state: JobAIdState, stage: str, error: str) -> Dict[str, 
             "fallback_used": fallback_used,
             "decision_log": _log_decision(state, stage, "skip", f"Max retries exceeded: {error}"),
         }
+
+
+def _build_state_summary(state: dict) -> str:
+    """Build a human-readable summary of what data exists in the state."""
+    parts = []
+
+    resume_info = state.get("resume_info")
+    if resume_info:
+        name = (resume_info.get("contact_info") or {}).get("name", "Unknown")
+        skills = (resume_info.get("skills") or {}).get("technical", [])
+        parts.append(f"Resume parsed: {name}, skills: {', '.join(skills[:8])}")
+    else:
+        parts.append("Resume: not yet parsed")
+
+    scored_jobs = state.get("scored_jobs") or []
+    if scored_jobs:
+        parts.append(f"Scored jobs ({len(scored_jobs)} found):")
+        for i, job in enumerate(scored_jobs):
+            title = job.get("title", "Unknown")
+            company = job.get("company", "Unknown")
+            score = job.get("score", "?")
+            parts.append(f"  [{i}] {title} at {company} (score: {score})")
+    else:
+        parts.append("Scored jobs: none yet")
+
+    if state.get("skill_gaps"):
+        parts.append("Market intelligence: available")
+    else:
+        parts.append("Market intelligence: not yet run")
+
+    if state.get("final_pitch"):
+        parts.append("Cover letter/pitch: generated")
+    else:
+        parts.append("Cover letter/pitch: not yet generated")
+
+    if state.get("summary"):
+        parts.append("Summary: generated")
+    else:
+        parts.append("Summary: not yet generated")
+
+    return "\n".join(parts)
+
+
+def _parse_router_json(text: str) -> dict:
+    """Extract JSON from LLM response, handling markdown fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines)
+    return json.loads(text)
+
+
+def interpret_user_intent(user_message: str, state: dict) -> dict:
+    """Use LLM to interpret user message and decide which agent to run.
+
+    Returns dict with: action, response_text, parameters.
+    """
+    state_summary = _build_state_summary(state)
+    system_prompt = ORCHESTRATOR_ROUTER_SYSTEM.format(state_summary=state_summary)
+
+    llm = ChatOpenAI(
+        model=settings.default_model,
+        api_key=settings.openai_api_key,
+        temperature=0.1,
+    )
+
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_message),
+    ]
+
+    debug(f"Orchestrator router: interpreting '{user_message}'")
+    response = llm.invoke(messages)
+
+    try:
+        result = _parse_router_json(response.content)
+    except (json.JSONDecodeError, ValueError):
+        debug(f"Orchestrator router: failed to parse JSON, defaulting to chitchat")
+        result = {
+            "action": "chitchat",
+            "response_text": response.content,
+            "parameters": {},
+        }
+
+    # Ensure required fields
+    result.setdefault("action", "chitchat")
+    result.setdefault("response_text", "")
+    result.setdefault("parameters", {})
+
+    debug(f"Orchestrator router: action={result['action']}")
+    return result

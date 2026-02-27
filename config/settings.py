@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     adzuna_base_url: str = "https://api.adzuna.com/v1/api"
     adzuna_country: str = "sg"
 
+    # Tavily web search
+    tavily_api_key: str = ""
+
     # ChromaDB
     chroma_persist_dir: str = "chroma_data"
 

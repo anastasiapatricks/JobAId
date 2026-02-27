@@ -1,22 +1,38 @@
-"""Pipeline execution endpoints — run, status, approve, results."""
+"""Pipeline execution endpoints — run, status, approve, results, step."""
 
-import asyncio
-import uuid
+import threading
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from models.api_models import (
     PipelineRunRequest,
     PipelineStatusResponse,
     ApprovalRequest,
     PipelineResultsResponse,
+    StepRequest,
+    StepResponse,
 )
 from api.dependencies import get_session, update_session, get_graph
-from agents.orchestrator import reset_autonomy
+from agents.orchestrator import reset_autonomy, interpret_user_intent
+from graph.nodes import (
+    resume_parser_node,
+    job_discovery_node,
+    market_intelligence_node,
+    pitch_generator_node,
+    summarizer_node,
+)
 
 router = APIRouter(prefix="/api/sessions", tags=["pipeline"])
 
+# Map action names to node functions
+_ACTION_NODES = {
+    "discovery": job_discovery_node,
+    "market_intel": market_intelligence_node,
+    "pitching": pitch_generator_node,
+    "summarizing": summarizer_node,
+}
+
 
 def _run_pipeline(session_id: str, state: dict):
-    """Run the pipeline synchronously (called from background task)."""
+    """Run the full pipeline synchronously (called from background task)."""
     try:
         update_session(session_id, status="running")
         reset_autonomy()
@@ -25,6 +41,26 @@ def _run_pipeline(session_id: str, state: dict):
         update_session(session_id, status="complete", state=final_state, result=final_state)
     except Exception as exc:
         update_session(session_id, status="error", state={"error": str(exc)})
+
+
+def _run_single_step(session_id: str, action: str, state: dict):
+    """Run a single agent node in a background thread, then set status back to awaiting_input."""
+    try:
+        node_fn = _ACTION_NODES.get(action)
+        if not node_fn:
+            update_session(session_id, status="awaiting_input")
+            return
+
+        result = node_fn(state)
+
+        # Merge result into existing state
+        merged = {**state, **result}
+        update_session(session_id, status="awaiting_input", state=merged, result=merged)
+    except Exception as exc:
+        errors = list(state.get("errors") or [])
+        errors.append({"stage": action, "error": str(exc)})
+        state["errors"] = errors
+        update_session(session_id, status="awaiting_input", state=state)
 
 
 @router.post("/{session_id}/run")
@@ -53,9 +89,75 @@ async def run_pipeline(session_id: str, req: PipelineRunRequest, background_task
         "fallback_used": [],
     }
 
-    background_tasks.add_task(_run_pipeline, session_id, initial_state)
+    # Only run resume parsing, then await user input
+    update_session(session_id, status="running", state=initial_state)
+
+    def _parse_and_await():
+        try:
+            result = resume_parser_node(initial_state)
+            merged = {**initial_state, **result}
+            update_session(session_id, status="awaiting_input", state=merged, result=merged)
+        except Exception as exc:
+            update_session(session_id, status="error", state={"error": str(exc)})
+
+    background_tasks.add_task(_parse_and_await)
 
     return {"session_id": session_id, "status": "started"}
+
+
+@router.post("/{session_id}/step", response_model=StepResponse)
+async def step(session_id: str, req: StepRequest):
+    """Conversational step: interpret user message and optionally run an agent."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session["status"] == "running":
+        raise HTTPException(status_code=409, detail="An agent is already running")
+
+    state = session.get("state") or session.get("result") or {}
+
+    # Let the orchestrator LLM interpret the user's intent
+    intent = interpret_user_intent(req.message, state)
+    action = intent.get("action", "chitchat")
+    response_text = intent.get("response_text", "")
+    parameters = intent.get("parameters") or {}
+
+    if action == "chitchat":
+        return StepResponse(
+            session_id=session_id,
+            status="awaiting_input",
+            response_text=response_text,
+            action=action,
+        )
+
+    # Apply extracted parameters to state
+    if parameters.get("job_query"):
+        state["job_query"] = parameters["job_query"]
+    if parameters.get("location_preference"):
+        state["location_preference"] = parameters["location_preference"]
+
+    # For pitching: reorder scored_jobs so target is at index 0
+    if action == "pitching":
+        target_idx = parameters.get("target_job_index")
+        scored_jobs = state.get("scored_jobs") or []
+        if scored_jobs and target_idx is not None and isinstance(target_idx, int):
+            if 0 <= target_idx < len(scored_jobs):
+                target_job = scored_jobs.pop(target_idx)
+                scored_jobs.insert(0, target_job)
+                state["scored_jobs"] = scored_jobs
+
+    # Set running and launch agent in background thread
+    update_session(session_id, status="running", state=state)
+    thread = threading.Thread(target=_run_single_step, args=(session_id, action, state))
+    thread.start()
+
+    return StepResponse(
+        session_id=session_id,
+        status="running",
+        response_text=response_text,
+        action=action,
+    )
 
 
 @router.get("/{session_id}/status", response_model=PipelineStatusResponse)
@@ -106,6 +208,7 @@ async def get_results(session_id: str):
         upskilling_roadmap=state.get("upskilling_roadmap", []),
         salary_insights=state.get("salary_insights"),
         industry_trends=state.get("industry_trends", []),
+        market_outlook=state.get("market_outlook"),
         final_pitch=state.get("final_pitch"),
         summary=state.get("summary"),
         decision_log=state.get("decision_log", []),

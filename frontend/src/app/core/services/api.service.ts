@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { SessionCreateRequest, SessionCreateResponse, SessionInfo } from '../models/session.model';
-import { PipelineRunRequest, PipelineRunResponse, PipelineStatusResponse } from '../models/pipeline.model';
+import { PipelineRunRequest, PipelineRunResponse, PipelineStatusResponse, StepResponse } from '../models/pipeline.model';
 import { PipelineResults } from '../models/results.model';
 import { ResumeUploadResponse } from '../models/resume.model';
 
@@ -42,6 +42,10 @@ export class ApiService {
 
   getResults(sessionId: string): Observable<PipelineResults> {
     return this.http.get<PipelineResults>(`/api/sessions/${sessionId}/results`);
+  }
+
+  sendStep(sessionId: string, message: string): Observable<StepResponse> {
+    return this.http.post<StepResponse>(`/api/sessions/${sessionId}/step`, { message });
   }
 
   approve(sessionId: string, approved = true, feedback?: string): Observable<{ session_id: string; approved: boolean }> {

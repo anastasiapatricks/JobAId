@@ -1,13 +1,12 @@
 import { Component, Input } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
 import { UpskillingItem } from '../../../core/models/results.model';
 
 @Component({
   selector: 'jobaid-upskilling-roadmap',
   standalone: true,
-  imports: [MatCardModule, MatIconModule, MatListModule],
+  imports: [MatCardModule, MatIconModule],
   template: `
     <div class="section-header">
       <mat-icon>school</mat-icon>
@@ -24,14 +23,14 @@ import { UpskillingItem } from '../../../core/models/results.model';
             }
           </div>
           @if (item.recommended_courses?.length) {
-            <mat-list class="course-list">
+            <ul class="course-list">
               @for (course of item.recommended_courses!; track course) {
-                <mat-list-item>
-                  <mat-icon matListItemIcon>play_circle</mat-icon>
-                  <span>{{ course }}</span>
-                </mat-list-item>
+                <li class="course-item">
+                  <mat-icon class="course-icon">play_circle</mat-icon>
+                  <span class="course-text" [innerHTML]="linkify(course)"></span>
+                </li>
               }
-            </mat-list>
+            </ul>
           }
         </mat-card-content>
       </mat-card>
@@ -70,10 +69,41 @@ import { UpskillingItem } from '../../../core/models/results.model';
       margin-left: auto;
     }
     .course-list {
-      margin-top: 8px;
+      list-style: none;
+      margin: 8px 0 0;
+      padding: 0;
+    }
+    .course-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 4px 0;
+    }
+    .course-icon {
+      flex-shrink: 0;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: var(--mat-sys-primary);
+      margin-top: 2px;
+    }
+    .course-text {
+      word-break: break-word;
+      white-space: normal;
+      line-height: 1.4;
+    }
+    .course-text a {
+      color: var(--mat-sys-primary);
+      text-decoration: underline;
     }
   `,
 })
 export class UpskillingRoadmapComponent {
   @Input({ required: true }) roadmap: UpskillingItem[] = [];
+
+  linkify(text: string): string {
+    const urlPattern = /(https?:\/\/[^\s)<>]+)/g;
+    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return escaped.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+  }
 }

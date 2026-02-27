@@ -47,6 +47,7 @@ export interface PipelineResults {
   upskilling_roadmap?: UpskillingItem[];
   salary_insights?: SalaryInsights | null;
   industry_trends?: string[];
+  market_outlook?: string | null;
   final_pitch?: string | null;
   summary?: string | null;
   decision_log?: DecisionLogEntry[];

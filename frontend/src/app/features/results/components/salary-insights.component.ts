@@ -8,6 +8,17 @@ import { SalaryInsights } from '../../../core/models/results.model';
   standalone: true,
   imports: [MatCardModule, MatIconModule],
   template: `
+    @if (marketOutlook) {
+      <div class="section-header">
+        <mat-icon>trending_up</mat-icon>
+        <h3>Market Outlook</h3>
+      </div>
+      <mat-card appearance="outlined" class="outlook-card">
+        <mat-card-content>
+          <p class="outlook-text">{{ marketOutlook }}</p>
+        </mat-card-content>
+      </mat-card>
+    }
     <div class="section-header">
       <mat-icon>payments</mat-icon>
       <h3>Salary Insights</h3>
@@ -53,6 +64,13 @@ import { SalaryInsights } from '../../../core/models/results.model';
       margin-bottom: 12px;
       h3 { margin: 0; }
       mat-icon { color: var(--mat-sys-primary); }
+    }
+    .outlook-card {
+      margin-bottom: 16px;
+    }
+    .outlook-text {
+      margin: 0;
+      line-height: 1.5;
     }
     .salary-card {
       margin-bottom: 16px;
@@ -105,6 +123,7 @@ import { SalaryInsights } from '../../../core/models/results.model';
 })
 export class SalaryInsightsComponent {
   @Input({ required: true }) salary: SalaryInsights | null = null;
+  @Input() marketOutlook: string | null = null;
 
   get medianPosition(): number {
     if (!this.salary?.min_salary || !this.salary?.max_salary || !this.salary?.median_salary) return 50;

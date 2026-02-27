@@ -22,15 +22,23 @@ def _normalize_adzuna_job(raw: dict) -> Dict[str, Any]:
     }
 
 
-def search_adzuna(query: str, location: str = "", num_results: int = 10) -> List[Dict[str, Any]]:
-    """Search Adzuna API for job listings.
+_STOP_WORDS = {
+    "in", "for", "a", "an", "the", "and", "or", "of", "at", "to", "with",
+    "on", "is", "as", "by", "about", "into", "from", "that", "this",
+    "i", "am", "looking", "searching", "seeking", "want", "need", "find",
+    "me", "my", "role", "position", "job", "jobs", "career", "work",
+}
 
-    Returns normalized job listings or empty list on failure.
-    """
-    if not settings.adzuna_app_id or not settings.adzuna_api_key:
-        debug("Adzuna: no API credentials configured, skipping")
-        return []
 
+def _simplify_query(query: str) -> str:
+    """Strip filler/stop words, keeping meaningful job-related terms."""
+    words = query.lower().split()
+    keywords = [w for w in words if w not in _STOP_WORDS and len(w) > 1]
+    return " ".join(keywords) if keywords else query
+
+
+def _search_adzuna_once(query: str, location: str, num_results: int) -> List[Dict[str, Any]]:
+    """Single Adzuna API call. Returns normalized jobs or empty list."""
     country = settings.adzuna_country
     url = f"{settings.adzuna_base_url}/jobs/{country}/search/1"
 
@@ -56,6 +64,32 @@ def search_adzuna(query: str, location: str = "", num_results: int = 10) -> List
     except Exception as exc:
         debug(f"Adzuna API error: {exc}")
         return []
+
+
+def search_adzuna(query: str, location: str = "", num_results: int = 10) -> List[Dict[str, Any]]:
+    """Search Adzuna API for job listings.
+
+    Tries the cleaned query first, then progressively broadens by dropping
+    trailing keywords until results are found or keywords are exhausted.
+    """
+    if not settings.adzuna_app_id or not settings.adzuna_api_key:
+        debug("Adzuna: no API credentials configured, skipping")
+        return []
+
+    clean = _simplify_query(query)
+    keywords = clean.split()
+
+    # Try full query, then progressively drop the last keyword to broaden
+    while keywords:
+        attempt = " ".join(keywords)
+        jobs = _search_adzuna_once(attempt, location, num_results)
+        if jobs:
+            return jobs
+        keywords.pop()
+        if keywords:
+            debug(f"Adzuna: 0 results, broadening to '{' '.join(keywords)}'")
+
+    return []
 
 
 def search_jobs(query: str, location: str = "", num_results: int = 10) -> List[Dict[str, Any]]:

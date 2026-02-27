@@ -38,3 +38,10 @@ export interface PipelineRunResponse {
   session_id: string;
   status: string;
 }
+
+export interface StepResponse {
+  session_id: string;
+  status: string;
+  response_text: string;
+  action: string;
+}

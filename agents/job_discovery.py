@@ -139,7 +139,8 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
     resume_summary = _build_resume_summary(state)
     jobs_text = json.dumps([
         {"title": j.get("title"), "company": j.get("company"), "location": j.get("location"),
-         "keywords": j.get("keywords", []), "description": j.get("description", "")[:200]}
+         "keywords": j.get("keywords", []), "description": j.get("description", "")[:200],
+         "url": j.get("url", "")}
         for j in raw_jobs
     ], indent=2)
 
@@ -159,11 +160,21 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
         ])
         scored = _parse_json_response(response.content)
         if isinstance(scored, list) and scored:
+            # Build lookup to recover URLs the LLM may have dropped
+            url_lookup = {}
+            for j in raw_jobs:
+                key = (j.get("title", "").lower().strip(), j.get("company", "").lower().strip())
+                if j.get("url"):
+                    url_lookup[key] = j["url"]
+
             # Ensure all required fields
             for item in scored:
                 item.setdefault("source", source)
                 item.setdefault("keywords", [])
-                item.setdefault("url", "")
+                # Recover URL from raw jobs if the LLM dropped it
+                if not item.get("url"):
+                    key = (item.get("title", "").lower().strip(), item.get("company", "").lower().strip())
+                    item["url"] = url_lookup.get(key, "")
             scored.sort(key=lambda x: -x.get("score", 0))
         else:
             raise ValueError("LLM returned empty or non-list response")

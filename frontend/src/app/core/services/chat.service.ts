@@ -14,6 +14,7 @@ export interface ChatMessage {
   fileName?: string;
   stageStatus?: PipelineStatusResponse;
   results?: PipelineResults;
+  action?: string;
   timestamp: Date;
 }
 
@@ -49,8 +50,8 @@ export class ChatService {
     this.addMessage({ type: 'stageUpdate', sender: 'system', stageStatus: status });
   }
 
-  addResults(results: PipelineResults): void {
-    this.addMessage({ type: 'results', sender: 'system', results });
+  addResults(results: PipelineResults, action?: string): void {
+    this.addMessage({ type: 'results', sender: 'system', results, action });
   }
 
   addError(text: string): void {

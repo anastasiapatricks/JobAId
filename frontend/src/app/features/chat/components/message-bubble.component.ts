@@ -20,7 +20,7 @@ import { ResultsContainerComponent } from '../../results/results-container.compo
       @if (message.type === 'results') {
         <div class="results-bubble">
           @if (message.results) {
-            <jobaid-results-container [results]="message.results"></jobaid-results-container>
+            <jobaid-results-container [results]="message.results" [action]="message.action ?? ''"></jobaid-results-container>
           }
         </div>
       } @else {

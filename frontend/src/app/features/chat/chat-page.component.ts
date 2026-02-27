@@ -7,9 +7,8 @@ import { ApiService } from '../../core/services/api.service';
 import { MessageListComponent } from './components/message-list.component';
 import { ChatInputComponent } from './components/chat-input.component';
 import { ResumeUploadComponent } from '../resume/resume-upload.component';
-import { PipelineStatusResponse } from '../../core/models/pipeline.model';
 
-type ChatState = 'welcome' | 'awaiting_resume' | 'awaiting_query' | 'running' | 'results';
+type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 'results';
 
 @Component({
   selector: 'jobaid-chat-page',
@@ -102,7 +101,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
           this.chat.setTyping(false);
           this.resumeText = res.resume_text;
           this.chat.addResumeMessage(res.resume_text, file.name);
-          this.promptForQuery();
+          this.startParsing();
         },
         error: (err) => {
           this.chat.setTyping(false);
@@ -120,7 +119,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
 
     this.resumeText = text;
     this.chat.addResumeMessage(text, 'Pasted text');
-    this.promptForQuery();
+    this.startParsing();
   }
 
   async onMessageSent(text: string): Promise<void> {
@@ -130,74 +129,122 @@ export class ChatPageComponent implements OnInit, OnDestroy {
       // Treat as pasted resume text
       this.resumeText = text;
       this.chat.addResumeMessage(text);
-      this.promptForQuery();
+      this.startParsing();
       return;
     }
 
-    if (this.state === 'awaiting_query') {
-      await this.startPipeline(text);
+    if (this.state === 'awaiting_input') {
+      await this.sendConversationalStep(text);
       return;
     }
 
     if (this.state === 'results') {
-      // Allow starting a new query with existing resume
+      // Allow continuing conversation from results state
       if (this.resumeText) {
-        await this.startPipeline(text);
+        this.state = 'awaiting_input';
+        await this.sendConversationalStep(text);
       }
     }
   }
 
-  private promptForQuery(): void {
-    this.state = 'awaiting_query';
-    this.chat.addSystemText(
-      'Resume received! Now, what kind of job are you looking for?\n\nFor example: "Python backend engineer in Singapore" or "Data scientist with ML experience"'
-    );
-  }
-
-  private async startPipeline(query: string): Promise<void> {
+  private async startParsing(): Promise<void> {
     this.state = 'running';
     this.chat.setTyping(true);
-    this.chat.addSystemText('Starting analysis pipeline...');
+    this.chat.addSystemText('Parsing your resume...');
 
     try {
       const sessionId = await this.session.ensureSession();
       this.session.updateStatus('running');
 
-      let lastStage: string | null = null;
-
       this.pipeline.startPipeline(
         sessionId,
         {
           resume_text: this.resumeText,
-          job_query: query,
+          job_query: '',
         },
         {
-          onStageChange: (status: PipelineStatusResponse) => {
-            if (status.current_stage !== lastStage) {
-              lastStage = status.current_stage;
-              this.chat.addStageUpdate(status);
+          onAwaitingInput: (results) => {
+            this.chat.setTyping(false);
+            this.state = 'awaiting_input';
+            this.session.updateStatus('awaiting_input');
+
+            // Build a greeting from parsed resume data
+            const resumeInfo = results.resume_info as Record<string, any> | undefined;
+            if (resumeInfo) {
+              const name = resumeInfo['contact_info']?.['name'] || 'there';
+              const skills = (resumeInfo['skills']?.['technical'] || []).slice(0, 5);
+              let greeting = `Great, I've parsed your resume, ${name}!`;
+              if (skills.length > 0) {
+                greeting += ` I can see you have experience with ${skills.join(', ')}.`;
+              }
+              greeting += '\n\nWhat would you like to do? You can ask me to:\n- Search for jobs (e.g., "Find Python developer jobs in Singapore")\n- Analyze market trends (e.g., "What\'s the fintech job market like?")\n- Write a cover letter (after finding jobs)\n- Summarize your session results';
+              this.chat.addSystemText(greeting);
+            } else {
+              this.chat.addSystemText(
+                'Resume parsed! What would you like to do? Try asking me to search for jobs, analyze the market, or write a cover letter.',
+              );
             }
           },
           onComplete: (results) => {
+            // Shouldn't happen with the new /run, but handle gracefully
             this.chat.setTyping(false);
             this.chat.addSystemText('Analysis complete! Here are your results:');
             this.chat.addResults(results);
             this.state = 'results';
             this.session.updateStatus('complete');
-            this.snackBar.open('Pipeline completed successfully!', 'OK', { duration: 3000 });
           },
           onError: (error) => {
             this.chat.setTyping(false);
-            this.chat.addError(`Pipeline error: ${error}`);
-            this.state = 'awaiting_query';
+            this.chat.addError(`Error parsing resume: ${error}`);
+            this.state = 'awaiting_resume';
             this.session.updateStatus('error');
           },
         },
       );
     } catch {
       this.chat.setTyping(false);
-      this.chat.addError('Failed to start pipeline. Please try again.');
-      this.state = 'awaiting_query';
+      this.chat.addError('Failed to start parsing. Please try again.');
+      this.state = 'awaiting_resume';
+    }
+  }
+
+  private async sendConversationalStep(text: string): Promise<void> {
+    this.chat.setTyping(true);
+    let lastAction = '';
+
+    try {
+      const sessionId = await this.session.ensureSession();
+
+      this.pipeline.sendStep(sessionId, text, {
+        onResponse: (stepResponse) => {
+          lastAction = stepResponse.action;
+
+          // Show the bot's response text
+          if (stepResponse.response_text) {
+            this.chat.addSystemText(stepResponse.response_text);
+          }
+
+          if (stepResponse.action === 'chitchat') {
+            this.chat.setTyping(false);
+            // Stay in awaiting_input
+          }
+          // If an agent is running, typing indicator stays on until poll completes
+        },
+        onAwaitingInput: (results) => {
+          this.chat.setTyping(false);
+          // Show results filtered by action
+          this.chat.addResults(results, lastAction);
+          this.state = 'awaiting_input';
+        },
+        onError: (error) => {
+          this.chat.setTyping(false);
+          this.chat.addError(`Error: ${error}`);
+          this.state = 'awaiting_input';
+        },
+      });
+    } catch {
+      this.chat.setTyping(false);
+      this.chat.addError('Failed to send message. Please try again.');
     }
   }
 }
