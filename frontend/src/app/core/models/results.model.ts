@@ -41,6 +41,7 @@ export interface DecisionLogEntry {
 export interface PipelineResults {
   session_id: string;
   status: string;
+  last_action?: string;
   resume_info?: Record<string, unknown> | null;
   scored_jobs?: ScoredJob[];
   skill_gaps?: SkillGap[];

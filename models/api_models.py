@@ -37,6 +37,7 @@ class ApprovalRequest(BaseModel):
 class PipelineResultsResponse(BaseModel):
     session_id: str
     status: str
+    last_action: Optional[str] = None
     resume_info: Optional[Dict[str, Any]] = None
     scored_jobs: List[Dict[str, Any]] = Field(default_factory=list)
     skill_gaps: List[Dict[str, Any]] = Field(default_factory=list)

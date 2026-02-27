@@ -51,6 +51,7 @@ def _run_single_step(session_id: str, action: str, state: dict):
             update_session(session_id, status="awaiting_input")
             return
 
+        state["last_action"] = action
         result = node_fn(state)
 
         # Merge result into existing state
@@ -148,6 +149,7 @@ async def step(session_id: str, req: StepRequest):
                 state["scored_jobs"] = scored_jobs
 
     # Set running and launch agent in background thread
+    state["last_action"] = action
     update_session(session_id, status="running", state=state)
     thread = threading.Thread(target=_run_single_step, args=(session_id, action, state))
     thread.start()
@@ -202,6 +204,7 @@ async def get_results(session_id: str):
     return PipelineResultsResponse(
         session_id=session_id,
         status=session["status"],
+        last_action=state.get("last_action"),
         resume_info=state.get("resume_info"),
         scored_jobs=state.get("scored_jobs", []),
         skill_gaps=state.get("skill_gaps", []),

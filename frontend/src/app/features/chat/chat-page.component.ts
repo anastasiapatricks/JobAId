@@ -189,7 +189,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
             // Shouldn't happen with the new /run, but handle gracefully
             this.chat.setTyping(false);
             this.chat.addSystemText('Analysis complete! Here are your results:');
-            this.chat.addResults(results);
+            this.chat.addResults(results, results.last_action || '');
             this.state = 'results';
             this.session.updateStatus('complete');
           },
@@ -233,7 +233,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         onAwaitingInput: (results) => {
           this.chat.setTyping(false);
           // Show results filtered by action
-          this.chat.addResults(results, lastAction);
+          this.chat.addResults(results, lastAction || results.last_action || '');
           this.state = 'awaiting_input';
         },
         onError: (error) => {
