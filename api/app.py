@@ -39,15 +39,20 @@ def create_app() -> FastAPI:
     # Request logging
     app.add_middleware(RequestLoggingMiddleware)
 
-    # Seed ChromaDB on startup
+    # Startup tasks
     @app.on_event("startup")
     async def startup():
+        # Seed ChromaDB
         try:
             from vectordb.seed_data import seed_all
             seed_all()
         except Exception as exc:
             import logging
             logging.getLogger("jobaid.api").warning(f"ChromaDB seeding failed: {exc}")
+
+        # Start session reaper (evicts sessions older than 1 hour)
+        from api.dependencies import start_session_reaper
+        start_session_reaper()
 
     # Routes
     app.include_router(health.router)
