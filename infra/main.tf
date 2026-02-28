@@ -167,7 +167,7 @@ resource "aws_instance" "jobaid" {
   associate_public_ip_address = true
 
   root_block_device {
-    volume_size = 8
+    volume_size = 30
     volume_type = "gp3"
   }
 
@@ -194,7 +194,7 @@ resource "aws_cloudwatch_metric_alarm" "instance_status" {
   alarm_name          = "jobaid-instance-status"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
-  metric_name         = "StatusCheckFailed"
+  metric_name         = "StatusCheckFailed_System"
   namespace           = "AWS/EC2"
   period              = 60
   statistic           = "Maximum"
