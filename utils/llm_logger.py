@@ -64,30 +64,39 @@ class LLMCallLogger:
         logger.info(json.dumps(entry))
 
 
-def timed_llm_call(func):
-    """Decorator to time and log LLM calls."""
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        try:
-            result = func(*args, **kwargs)
-            latency = (time.time() - start) * 1000
-            logger.info(json.dumps({
-                "event": "llm_call",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "function": func.__name__,
-                "latency_ms": round(latency, 1),
-                "status": "success",
-            }))
-            return result
-        except Exception as e:
-            latency = (time.time() - start) * 1000
-            logger.error(json.dumps({
-                "event": "llm_call",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "function": func.__name__,
-                "latency_ms": round(latency, 1),
-                "status": "error",
-                "error": str(e)[:200],
-            }))
-            raise
-    return wrapper
+def logged_invoke(llm, messages, task_type: str):
+    """Invoke an LLM and log the call with timing and token usage.
+
+    Drop-in replacement for llm.invoke(messages) — returns the same response object.
+    """
+    start = time.time()
+    try:
+        response = llm.invoke(messages)
+        latency = (time.time() - start) * 1000
+        usage = response.usage_metadata or {}
+        entry = {
+            "event": "llm_call",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "model": llm.model_name,
+            "task_type": task_type,
+            "prompt_tokens": usage.get("input_tokens", 0),
+            "completion_tokens": usage.get("output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
+            "latency_ms": round(latency, 1),
+            "status": "success",
+        }
+        logger.info(json.dumps(entry))
+        return response
+    except Exception as e:
+        latency = (time.time() - start) * 1000
+        entry = {
+            "event": "llm_call",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "model": getattr(llm, "model_name", "unknown"),
+            "task_type": task_type,
+            "latency_ms": round(latency, 1),
+            "status": "error",
+            "error": str(e)[:200],
+        }
+        logger.error(json.dumps(entry))
+        raise

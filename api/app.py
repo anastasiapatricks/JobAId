@@ -2,12 +2,17 @@
 
 import sys
 import os
+import logging
 
 # Ensure project root is on sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
+
+# Configure structured logging for jobaid loggers (LLM calls, API requests)
+logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
+logging.getLogger("jobaid").setLevel(logging.INFO)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

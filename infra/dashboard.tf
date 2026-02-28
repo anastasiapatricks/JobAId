@@ -53,11 +53,24 @@ resource "aws_cloudwatch_dashboard" "jobaid" {
         type   = "log"
         x      = 0
         y      = 12
-        width  = 24
+        width  = 12
         height = 6
         properties = {
-          title  = "LLM Call Latency"
-          query  = "SOURCE '/jobaid/backend' | fields @timestamp, @message | filter @message like /llm_call/ | sort @timestamp desc | limit 20"
+          title  = "LLM Call Latency by Agent"
+          query  = "SOURCE '/jobaid/backend' | parse @message '\"task_type\": \"*\"' as task_type | parse @message '\"latency_ms\": *,' as latency_ms | parse @message '\"total_tokens\": *,' as total_tokens | filter @message like /llm_call/ | stats avg(latency_ms) as avg_latency, max(latency_ms) as max_latency, sum(total_tokens) as tokens, count(*) as calls by task_type"
+          region = var.region
+          view   = "table"
+        }
+      },
+      {
+        type   = "log"
+        x      = 12
+        y      = 12
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Recent LLM Calls"
+          query  = "SOURCE '/jobaid/backend' | parse @message '\"task_type\": \"*\"' as task_type | parse @message '\"latency_ms\": *,' as latency_ms | parse @message '\"total_tokens\": *,' as total_tokens | parse @message '\"model\": \"*\"' as model | parse @message '\"status\": \"*\"' as status | filter @message like /llm_call/ | display @timestamp, task_type, latency_ms, total_tokens, model, status | sort @timestamp desc | limit 20"
           region = var.region
           view   = "table"
         }

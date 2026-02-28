@@ -11,6 +11,7 @@ from config.prompts import RESUME_PARSER_SYSTEM, RESUME_PARSER_CONFIDENCE
 from guardrails.input_filter import spotlight_wrap, validate_resume_text
 from tools.pii_sanitizer import strip_pii
 from utils import debug
+from utils.llm_logger import logged_invoke
 
 
 def load_resume_from_file(path: str) -> str:
@@ -55,10 +56,10 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Step 1: Extract structured resume info
     debug("Resume Parser: extracting structured info via LLM")
-    extraction_response = llm.invoke([
+    extraction_response = logged_invoke(llm, [
         SystemMessage(content=RESUME_PARSER_SYSTEM),
         HumanMessage(content=spotlight_wrap(resume_text)),
-    ])
+    ], "resume_extraction")
     resume_info = _parse_json_response(extraction_response.content)
 
     if not resume_info:
@@ -68,10 +69,10 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Step 2: Assess confidence
     debug("Resume Parser: assessing confidence")
-    confidence_response = llm.invoke([
+    confidence_response = logged_invoke(llm, [
         SystemMessage(content=RESUME_PARSER_CONFIDENCE),
         HumanMessage(content=json.dumps(resume_info, indent=2)),
-    ])
+    ], "resume_confidence")
     confidence_data = _parse_json_response(confidence_response.content)
     confidence = confidence_data.get("confidence", 0.5)
     missing_fields = confidence_data.get("missing_fields", [])

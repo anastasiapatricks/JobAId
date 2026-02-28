@@ -15,6 +15,7 @@ from config.prompts import JOB_DISCOVERY_SYSTEM
 from tools.job_board_api import search_jobs
 from tools.chromadb_tools import upsert_jobs, search_collection
 from utils import debug, get_latest_results
+from utils.llm_logger import logged_invoke
 
 
 def _parse_json_response(text: str) -> Any:
@@ -156,10 +157,10 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         llm = ChatOpenAI(model=settings.default_model, temperature=0)
-        response = llm.invoke([
+        response = logged_invoke(llm, [
             SystemMessage(content=JOB_DISCOVERY_SYSTEM),
             HumanMessage(content=user_prompt),
-        ])
+        ], "job_ranking")
         scored = _parse_json_response(response.content)
         if isinstance(scored, list) and scored:
             # Build lookup to recover URLs the LLM may have dropped

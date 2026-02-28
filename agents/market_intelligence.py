@@ -11,6 +11,7 @@ from config.prompts import MARKET_INTELLIGENCE_SYSTEM
 from tools.chromadb_tools import search_collection
 from tools.tavily_search import search_courses, search_trends, search_salary
 from utils import debug, get_latest_results
+from utils.llm_logger import logged_invoke
 
 
 def _parse_json_response(text: str) -> dict:
@@ -192,10 +193,10 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         llm = ChatOpenAI(model=settings.default_model, temperature=0)
-        response = llm.invoke([
+        response = logged_invoke(llm, [
             SystemMessage(content=MARKET_INTELLIGENCE_SYSTEM),
             HumanMessage(content=user_prompt),
-        ])
+        ], "market_analysis")
         result = _parse_json_response(response.content)
     except Exception as exc:
         debug(f"Market Intel: LLM error: {exc}")

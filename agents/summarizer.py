@@ -9,6 +9,7 @@ from langchain.schema import SystemMessage, HumanMessage
 from config.settings import settings
 from config.prompts import SUMMARIZER_SYSTEM
 from utils import debug
+from utils.llm_logger import logged_invoke
 
 
 # Keys to exclude from the context — internal/noisy fields the LLM doesn't need
@@ -38,10 +39,10 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         llm = ChatOpenAI(model=settings.default_model, temperature=0)
-        response = llm.invoke([
+        response = logged_invoke(llm, [
             SystemMessage(content=SUMMARIZER_SYSTEM),
             HumanMessage(content=f"Session data:\n\n{context}\n\nGenerate the final report."),
-        ])
+        ], "summarization")
         summary_text = response.content.strip()
     except Exception as exc:
         debug(f"Summarizer LLM error: {exc}")

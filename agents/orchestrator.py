@@ -12,6 +12,7 @@ from guardrails.bounded_autonomy import BoundedAutonomy
 from config.settings import settings
 from config.prompts import ORCHESTRATOR_ROUTER_SYSTEM
 from utils import debug, get_latest_results
+from utils.llm_logger import logged_invoke
 
 # Valid FSM transitions: current_stage → set of allowed next stages
 TRANSITIONS: Dict[str, list] = {
@@ -240,7 +241,7 @@ def interpret_user_intent(user_message: str, state: dict) -> dict:
     ]
 
     debug(f"Orchestrator router: interpreting '{user_message}'")
-    response = llm.invoke(messages)
+    response = logged_invoke(llm, messages, "intent_routing")
 
     try:
         result = _parse_router_json(response.content)

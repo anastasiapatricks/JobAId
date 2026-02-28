@@ -16,6 +16,7 @@ from config.prompts import (
 from tools.tavily_search import search_company
 from tools.wikipedia import get_company_summary
 from utils import debug, get_latest_results
+from utils.llm_logger import logged_invoke
 
 
 def _parse_json_response(text: str) -> dict:
@@ -119,10 +120,10 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Job description: {best_job.get('description', 'N/A')[:500]}\n"
     )
 
-    research_response = llm.invoke([
+    research_response = logged_invoke(llm, [
         SystemMessage(content=PITCH_RESEARCH_SYSTEM),
         HumanMessage(content=f"{job_context}\n\nCompany info:\n{company_info}"),
-    ])
+    ], "pitch_research")
     company_research = research_response.content
 
     # ─── Step 2: Match Analysis ───
@@ -132,10 +133,10 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Job:\n{job_context}\n\n"
         f"Company research:\n{company_research}"
     )
-    match_response = llm.invoke([
+    match_response = logged_invoke(llm, [
         SystemMessage(content=PITCH_MATCH_ANALYSIS_SYSTEM),
         HumanMessage(content=match_prompt),
-    ])
+    ], "pitch_match_analysis")
     match_analysis = _parse_json_response(match_response.content)
     if not match_analysis:
         match_analysis = {"strengths": [], "gaps": [], "value_propositions": [], "talking_points": []}
@@ -149,19 +150,19 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Match analysis:\n{json.dumps(match_analysis, indent=2)}\n\n"
         f"Write a compelling, personalized cover letter."
     )
-    draft_response = llm.invoke([
+    draft_response = logged_invoke(llm, [
         SystemMessage(content=PITCH_DRAFT_SYSTEM),
         HumanMessage(content=draft_prompt),
-    ])
+    ], "pitch_draft")
     draft = draft_response.content
     draft_pitches.append({"version": "draft", "content": draft})
 
     # ─── Step 4: Quality Review ───
     debug("Pitch Generator: Step 4 — quality review")
-    review_response = llm.invoke([
+    review_response = logged_invoke(llm, [
         SystemMessage(content=PITCH_REVIEW_SYSTEM),
         HumanMessage(content=f"Review and improve this cover letter:\n\n{draft}"),
-    ])
+    ], "pitch_review")
     final_pitch = review_response.content
     draft_pitches.append({"version": "final", "content": final_pitch})
 
