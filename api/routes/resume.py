@@ -1,10 +1,47 @@
 """Resume upload endpoint."""
 
+import io
+
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from models.api_models import ResumeUploadResponse
 from api.dependencies import get_session, update_session
 
 router = APIRouter(prefix="/api/sessions", tags=["resume"])
+
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".doc", ".docx"}
+
+
+def _extract_text(filename: str, content: bytes) -> str:
+    """Extract plain text from an uploaded resume file."""
+    ext = ""
+    if filename:
+        ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Accepted: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+
+    if ext == ".pdf":
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(content))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        return text.strip()
+
+    if ext in (".doc", ".docx"):
+        from docx import Document
+
+        doc = Document(io.BytesIO(content))
+        text = "\n".join(p.text for p in doc.paragraphs)
+        return text.strip()
+
+    # .txt — try UTF-8, fall back to latin-1
+    try:
+        return content.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return content.decode("latin-1").strip()
 
 
 @router.post("/{session_id}/resume", response_model=ResumeUploadResponse)
@@ -14,7 +51,15 @@ async def upload_resume(session_id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="Session not found")
 
     content = await file.read()
-    resume_text = content.decode("utf-8").strip()
+
+    try:
+        resume_text = _extract_text(file.filename, content)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Could not parse resume: {exc}"
+        ) from exc
 
     if not resume_text:
         raise HTTPException(status_code=400, detail="Resume file is empty")
