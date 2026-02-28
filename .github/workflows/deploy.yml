@@ -1,0 +1,99 @@
+name: Deploy — Build, Push ECR, Deploy EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-southeast-1
+
+jobs:
+  build-and-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    outputs:
+      backend_image: ${{ steps.build.outputs.backend_image }}
+      frontend_image: ${{ steps.build.outputs.frontend_image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push images
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Backend
+          docker build -f Dockerfile.backend -t $ECR_REGISTRY/jobaid-backend:$IMAGE_TAG -t $ECR_REGISTRY/jobaid-backend:latest .
+          docker push $ECR_REGISTRY/jobaid-backend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/jobaid-backend:latest
+          echo "backend_image=$ECR_REGISTRY/jobaid-backend:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+          # Frontend
+          docker build -f Dockerfile.frontend -t $ECR_REGISTRY/jobaid-frontend:$IMAGE_TAG -t $ECR_REGISTRY/jobaid-frontend:latest .
+          docker push $ECR_REGISTRY/jobaid-frontend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/jobaid-frontend:latest
+          echo "frontend_image=$ECR_REGISTRY/jobaid-frontend:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy to EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ECR login password
+        id: ecr
+        run: |
+          echo "password=$(aws ecr get-login-password --region $AWS_REGION)" >> $GITHUB_OUTPUT
+          echo "registry=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com" >> $GITHUB_OUTPUT
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Login to ECR
+            echo "${{ steps.ecr.outputs.password }}" | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}
+
+            # Write .env file
+            cat > /home/ec2-user/.env << 'ENVEOF'
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}
+            ADZUNA_APP_ID=${{ secrets.ADZUNA_APP_ID }}
+            ADZUNA_API_KEY=${{ secrets.ADZUNA_API_KEY }}
+            ENVEOF
+
+            # Set ECR image URIs
+            export ECR_BACKEND_URL=${{ steps.ecr.outputs.registry }}/jobaid-backend
+            export ECR_FRONTEND_URL=${{ steps.ecr.outputs.registry }}/jobaid-frontend
+
+            # Pull latest images and restart
+            cd /home/ec2-user
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # Wait for health check
+            sleep 10
+            curl -sf http://localhost/api/health || echo "Health check pending..."

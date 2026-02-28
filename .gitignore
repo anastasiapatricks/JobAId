@@ -12,3 +12,11 @@ chroma_db/
 *.egg-info/
 dist/
 build/
+
+# Terraform
+infra/.terraform/
+infra/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example

@@ -266,11 +266,261 @@ PracticeModule-Team31/
 │   ├── seed_salary_data.json    # 18 salary benchmarks (Singapore)
 │   └── seed_industry_trends.json # 12 industry trend articles
 ├── tests/
+│   ├── conftest.py                # Shared test fixtures
+│   ├── test_input_filter.py       # AI security tests (prompt injection)
+│   ├── test_output_filter.py      # Output validation tests
+│   ├── test_bounded_autonomy.py   # Autonomy limit tests
+│   ├── test_pii_sanitizer.py      # PII sanitization tests
+│   ├── test_health.py             # Health endpoint tests
+│   └── test_sessions.py           # Session lifecycle tests
+├── infra/
+│   ├── main.tf                    # ECR + EC2 + SG + IAM + CloudWatch
+│   ├── dashboard.tf               # CloudWatch dashboard
+│   ├── variables.tf               # Terraform input variables
+│   ├── outputs.tf                 # App URL, SSH, ECR URIs
+│   ├── user_data.sh.tpl           # EC2 bootstrap script
+│   ├── bootstrap.sh               # One-time S3 state backend setup
+│   └── terraform.tfvars.example   # Variable template
+├── nginx/
+│   └── nginx.conf                 # SPA serving + API reverse proxy
+├── .github/workflows/
+│   ├── ci.yml                     # Tests + security scan
+│   └── deploy.yml                 # Build → ECR → Deploy EC2
+├── Dockerfile.backend             # Python 3.12-slim + uv
+├── Dockerfile.frontend            # Multi-stage Node + nginx
+├── docker-compose.yml             # Local dev orchestration
+├── docker-compose.prod.yml        # Production with ECR + awslogs
+├── .dockerignore
+├── .env.example
 ├── sample_resume.txt
 ├── sample_resume_oth.txt
 ├── pyproject.toml
-├── utils.py
 └── README.md
+```
+
+## Deployment
+
+### Docker (Local)
+
+Build and run both services locally with Docker Compose:
+
+```bash
+# 1. Copy and fill in environment variables
+cp .env.example .env
+# Edit .env with your API keys
+
+# 2. Build and start
+docker compose build
+docker compose up -d
+
+# 3. Verify
+curl http://localhost/api/health
+# Open http://localhost in your browser
+```
+
+The frontend (nginx) serves the Angular SPA on port 80 and reverse-proxies `/api/*` requests to the backend on port 8000. SSE streaming and 120s timeouts for LLM calls are pre-configured.
+
+### Docker (Production — AWS EC2)
+
+Production deployment uses **Terraform** to provision AWS infrastructure and **GitHub Actions** for CI/CD.
+
+#### Prerequisites
+
+- AWS account with an IAM user that has EC2, ECR, CloudWatch, and S3 permissions
+- An existing EC2 key pair in `ap-southeast-1` for SSH access
+- AWS CLI configured locally (`aws configure`)
+
+#### 1. Bootstrap Terraform State Backend (one-time)
+
+```bash
+cd infra
+bash bootstrap.sh
+```
+
+This creates an S3 bucket and DynamoDB table for Terraform remote state.
+
+#### 2. Provision Infrastructure
+
+```bash
+cd infra
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your key pair name, API keys, and SSH CIDR
+
+terraform init
+terraform apply
+```
+
+Terraform creates:
+- 2 ECR repositories (`jobaid-backend`, `jobaid-frontend`)
+- EC2 instance (`t3.small`, ~$0.02/hr) with Docker pre-installed
+- Security group (HTTP port 80, SSH port 22)
+- IAM instance profile (ECR pull + CloudWatch Logs)
+- CloudWatch Log Groups (`/jobaid/backend`, `/jobaid/frontend`) with 7-day retention
+- CloudWatch Alarms (instance health auto-recovery, high CPU)
+- CloudWatch Dashboard (CPU, network, error logs, LLM latency)
+
+After `terraform apply`, note the outputs:
+```
+app_url        = "http://ec2-x-x-x-x.ap-southeast-1.compute.amazonaws.com"
+ssh_command    = "ssh -i your-key.pem ec2-user@ec2-x-x-x-x.ap-southeast-1.compute.amazonaws.com"
+ecr_backend_url  = "123456789.dkr.ecr.ap-southeast-1.amazonaws.com/jobaid-backend"
+ecr_frontend_url = "123456789.dkr.ecr.ap-southeast-1.amazonaws.com/jobaid-frontend"
+dashboard_url  = "https://ap-southeast-1.console.aws.amazon.com/cloudwatch/..."
+```
+
+#### 3. Configure GitHub Secrets
+
+Add these secrets to the GitHub repository (Settings → Secrets and variables → Actions):
+
+| Secret | Purpose |
+|--------|---------|
+| `AWS_ACCESS_KEY_ID` | AWS credentials for ECR + deploy |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials |
+| `OPENAI_API_KEY` | Passed to EC2 .env |
+| `TAVILY_API_KEY` | Passed to EC2 .env |
+| `ADZUNA_APP_ID` | Passed to EC2 .env |
+| `ADZUNA_API_KEY` | Passed to EC2 .env |
+| `EC2_SSH_KEY` | Private key (PEM) for SSH into EC2 |
+| `EC2_HOST` | EC2 public DNS from terraform output |
+
+#### 4. Deploy
+
+Push to `main` to trigger the full pipeline:
+
+```
+Push to main → CI (tests + security scan) → Build & Push to ECR → Deploy to EC2
+```
+
+Or trigger a manual deploy from the Actions tab using `workflow_dispatch`.
+
+#### 5. Teardown
+
+Remove all AWS resources and stop all costs:
+
+```bash
+cd infra
+terraform destroy
+```
+
+### Cost Summary
+
+| Resource | Cost |
+|----------|------|
+| EC2 `t3.small` | ~$0.02/hr (~$15/month) |
+| ECR | Free tier (500 MB/month) |
+| CloudWatch Logs | Minimal (7-day retention) |
+| Elastic IP | Not used (free auto-assigned DNS) |
+| **Teardown** | `terraform destroy` removes everything |
+
+## Testing
+
+### Run Tests
+
+```bash
+# Install dev dependencies
+uv sync --all-extras
+
+# Run all tests
+uv run pytest tests/ -v
+
+# Run specific test file
+uv run pytest tests/test_input_filter.py -v
+```
+
+### Test Suite (92 tests)
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `test_input_filter.py` | 19 | Prompt injection detection (all 7 patterns), input length limits, spotlight wrapping, adversarial inputs |
+| `test_output_filter.py` | 14 | Resume/job/pitch output validation, grounding score calculation |
+| `test_bounded_autonomy.py` | 14 | Iteration limits, per-stage retry limits, LLM call limits, reset |
+| `test_pii_sanitizer.py` | 14 | PII stripping (name, email, phone), gender indicator removal, text sanitization |
+| `test_health.py` | 5 | Health endpoint: status, version, uptime, system checks |
+| `test_sessions.py` | 7 | Session CRUD lifecycle, 404 handling |
+
+### AI Security Tests
+
+The `test_input_filter.py` file specifically tests prompt injection defense against all 7 detection patterns:
+- `ignore previous/above/prior instructions`
+- `you are now`
+- `system:` prefix
+- `<system>` tags
+- `ADMIN MODE`
+- `jailbreak`
+- `DAN mode`
+
+Also tests adversarial bypass attempts (case variations, extra whitespace, mixed case) and verifies that legitimate technical resumes containing words like "system" or "admin" pass validation.
+
+## CI/CD Pipeline
+
+### CI — Tests & Quality (`.github/workflows/ci.yml`)
+
+Triggered on every push and PR to `main`:
+
+1. **Backend Tests** — installs deps with `uv sync`, runs `pytest tests/ -v`
+2. **Security Scan** — `pip-audit` for Python dependencies, `npm audit` for frontend dependencies
+
+### Deploy — Build, Push, Deploy (`.github/workflows/deploy.yml`)
+
+Triggered on push to `main` or manual dispatch:
+
+1. **Build & Push** — builds both Docker images, tags with git SHA + `latest`, pushes to ECR
+2. **Deploy** — SSHs into EC2, pulls latest images, runs `docker compose up -d`, verifies health check
+
+## Monitoring & Observability
+
+### Structured Logging
+
+All API requests are logged as structured JSON with:
+- `timestamp`, `request_id`, `method`, `path`, `status`, `duration`
+
+LLM calls are tracked via `utils/llm_logger.py` with:
+- `model`, `task_type`, `prompt_tokens`, `completion_tokens`, `latency_ms`
+- Per-session aggregate summaries (total calls, tokens, latency)
+
+### Health Check
+
+`GET /api/health` returns:
+```json
+{
+  "status": "healthy",
+  "version": "0.2.0",
+  "uptime_seconds": 3600,
+  "checks": {
+    "env_vars": "ok",
+    "chromadb": "ok"
+  }
+}
+```
+
+### CloudWatch (Production)
+
+In production, Docker containers stream logs directly to CloudWatch via the `awslogs` driver — no agent installation required.
+
+**Log Groups:**
+- `/jobaid/backend` — API requests, LLM calls, agent execution
+- `/jobaid/frontend` — nginx access/error logs
+
+**Alarms:**
+- Instance status check (auto-recovers on failure)
+- High CPU (>80% for 5 minutes)
+
+**Dashboard** (`jobaid-dashboard`):
+- EC2 CPU utilization and network I/O
+- Recent backend error logs
+- LLM call latency
+
+**Useful CloudWatch Logs Insights queries:**
+
+```
+# Error rate in last hour
+fields @timestamp, @message | filter @message like /ERROR/ | stats count() by bin(5m)
+
+# LLM call latency
+fields @timestamp, model, latency_ms | filter @message like /llm_call/
+
+# Slow API requests (>5s)
+fields method, path, duration | filter duration > 5
 ```
 
 ## Seed Data

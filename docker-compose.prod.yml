@@ -1,0 +1,30 @@
+services:
+  backend:
+    image: ${ECR_BACKEND_URL:-jobaid-backend}:latest
+    env_file: .env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ap-southeast-1
+        awslogs-group: /jobaid/backend
+        awslogs-stream-prefix: ecs
+
+  frontend:
+    image: ${ECR_FRONTEND_URL:-jobaid-frontend}:latest
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ap-southeast-1
+        awslogs-group: /jobaid/frontend
+        awslogs-stream-prefix: ecs
