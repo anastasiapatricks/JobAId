@@ -1,10 +1,16 @@
 """Adzuna job board API integration with MOCK_JOBS fallback."""
 
+import json
+import time
+import logging
 from typing import List, Dict, Any
+from datetime import datetime, timezone
 import httpx
 from config.settings import settings
 from tools.job_scrape import MOCK_JOBS
 from utils import debug
+
+_api_logger = logging.getLogger("jobaid.external")
 
 
 def _normalize_adzuna_job(raw: dict) -> Dict[str, Any]:
@@ -52,6 +58,7 @@ def _search_adzuna_once(query: str, location: str, num_results: int) -> List[Dic
     if location:
         params["where"] = location
 
+    start = time.time()
     try:
         debug(f"Adzuna: searching for '{query}' in {country}")
         resp = httpx.get(url, params=params, timeout=10)
@@ -59,9 +66,29 @@ def _search_adzuna_once(query: str, location: str, num_results: int) -> List[Dic
         data = resp.json()
         results = data.get("results", [])
         jobs = [_normalize_adzuna_job(r) for r in results]
+        latency_ms = round((time.time() - start) * 1000, 1)
+        _api_logger.info(json.dumps({
+            "event": "external_api_call",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "service": "adzuna",
+            "operation": "search",
+            "status": "success",
+            "latency_ms": latency_ms,
+            "result_count": len(jobs),
+        }))
         debug(f"Adzuna: found {len(jobs)} results")
         return jobs
     except Exception as exc:
+        latency_ms = round((time.time() - start) * 1000, 1)
+        _api_logger.error(json.dumps({
+            "event": "external_api_call",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "service": "adzuna",
+            "operation": "search",
+            "status": "error",
+            "latency_ms": latency_ms,
+            "error": str(exc)[:200],
+        }))
         debug(f"Adzuna API error: {exc}")
         return []
 

@@ -1,7 +1,10 @@
 """Dependency injection for FastAPI — session store, graph instance."""
 
+import json
 import uuid
+import logging
 from typing import Dict, Any
+from datetime import datetime, timezone
 from graph.builder import build_graph
 from agents.orchestrator import reset_autonomy
 
@@ -10,6 +13,18 @@ _sessions: Dict[str, Dict[str, Any]] = {}
 
 # Compiled graph (singleton)
 _graph = None
+
+_session_logger = logging.getLogger("jobaid.session")
+
+
+def _log_session_event(action: str, session_id: str, new_status: str):
+    _session_logger.info(json.dumps({
+        "event": "session_lifecycle",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": action,
+        "session_id": session_id,
+        "new_status": new_status,
+    }))
 
 
 def get_graph():
@@ -30,6 +45,7 @@ def create_session(initial_data: Dict[str, Any] | None = None) -> str:
         "state": state,
         "result": None,
     }
+    _log_session_event("create", session_id, "created")
     return session_id
 
 
@@ -40,10 +56,15 @@ def get_session(session_id: str) -> Dict[str, Any] | None:
 def update_session(session_id: str, **kwargs):
     if session_id in _sessions:
         _sessions[session_id].update(kwargs)
+        new_status = kwargs.get("status", _sessions[session_id].get("status", "unknown"))
+        _log_session_event("update", session_id, new_status)
 
 
 def delete_session(session_id: str) -> bool:
-    return _sessions.pop(session_id, None) is not None
+    removed = _sessions.pop(session_id, None) is not None
+    if removed:
+        _log_session_event("delete", session_id, "deleted")
+    return removed
 
 
 def list_sessions() -> list:

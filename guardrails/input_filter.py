@@ -1,7 +1,12 @@
 """Input validation and prompt injection defense."""
 
+import json
 import re
+import logging
 from typing import Tuple
+from datetime import datetime, timezone
+
+_guard_logger = logging.getLogger("jobaid.guardrails")
 
 # Patterns that suggest prompt injection attempts
 _INJECTION_PATTERNS = [
@@ -26,6 +31,13 @@ def validate_resume_text(text: str) -> Tuple[bool, str]:
         return False, f"Resume text exceeds maximum length ({MAX_INPUT_LENGTH} chars)."
     for pattern in _INJECTION_PATTERNS:
         if pattern.search(text):
+            _guard_logger.warning(json.dumps({
+                "event": "guardrail_triggered",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "guardrail": "prompt_injection",
+                "stage": "resume_input",
+                "detail": f"matched pattern: {pattern.pattern[:60]}",
+            }))
             return False, "Input contains suspicious patterns and was rejected."
     return True, ""
 
@@ -38,6 +50,13 @@ def validate_job_query(query: str) -> Tuple[bool, str]:
         return False, f"Job query exceeds maximum length ({MAX_QUERY_LENGTH} chars)."
     for pattern in _INJECTION_PATTERNS:
         if pattern.search(query):
+            _guard_logger.warning(json.dumps({
+                "event": "guardrail_triggered",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "guardrail": "prompt_injection",
+                "stage": "job_query_input",
+                "detail": f"matched pattern: {pattern.pattern[:60]}",
+            }))
             return False, "Input contains suspicious patterns and was rejected."
     return True, ""
 
