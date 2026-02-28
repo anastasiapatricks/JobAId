@@ -1,6 +1,11 @@
 output "app_url" {
-  description = "Application URL"
-  value       = "http://${aws_instance.jobaid.public_dns}"
+  description = "Application URL (via CloudFront HTTPS)"
+  value       = "https://${aws_cloudfront_distribution.jobaid.domain_name}"
+}
+
+output "cloudfront_url" {
+  description = "CloudFront distribution URL"
+  value       = "https://${aws_cloudfront_distribution.jobaid.domain_name}"
 }
 
 output "ssh_command" {
