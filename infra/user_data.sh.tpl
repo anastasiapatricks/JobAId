@@ -52,7 +52,6 @@ services:
       options:
         awslogs-region: ${region}
         awslogs-group: /jobaid/backend
-        awslogs-stream-prefix: ecs
 
   frontend:
     image: ${ecr_frontend_url}:latest
@@ -66,7 +65,6 @@ services:
       options:
         awslogs-region: ${region}
         awslogs-group: /jobaid/frontend
-        awslogs-stream-prefix: ecs
 COMPOSEEOF
 
 chown ec2-user:ec2-user /home/ec2-user/docker-compose.prod.yml

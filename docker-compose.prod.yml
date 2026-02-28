@@ -13,7 +13,6 @@ services:
       options:
         awslogs-region: ap-southeast-1
         awslogs-group: /jobaid/backend
-        awslogs-stream-prefix: ecs
 
   frontend:
     image: ${ECR_FRONTEND_URL:-jobaid-frontend}:latest
@@ -27,4 +26,3 @@ services:
       options:
         awslogs-region: ap-southeast-1
         awslogs-group: /jobaid/frontend
-        awslogs-stream-prefix: ecs
