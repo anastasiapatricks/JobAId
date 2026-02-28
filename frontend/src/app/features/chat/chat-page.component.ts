@@ -30,10 +30,12 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
         </div>
       }
 
-      <jobaid-chat-input
-        (messageSent)="onMessageSent($event)"
-        (fileSelected)="onFileUploaded($event)"
-      ></jobaid-chat-input>
+      @if (state !== 'awaiting_resume') {
+        <jobaid-chat-input
+          (messageSent)="onMessageSent($event)"
+          (fileSelected)="onFileUploaded($event)"
+        ></jobaid-chat-input>
+      }
     </div>
   `,
   styles: `
@@ -124,14 +126,6 @@ export class ChatPageComponent implements OnInit, OnDestroy {
 
   async onMessageSent(text: string): Promise<void> {
     this.chat.addUserText(text);
-
-    if (this.state === 'awaiting_resume') {
-      // Treat as pasted resume text
-      this.resumeText = text;
-      this.chat.addResumeMessage(text);
-      this.startParsing();
-      return;
-    }
 
     if (this.state === 'awaiting_input') {
       await this.sendConversationalStep(text);
