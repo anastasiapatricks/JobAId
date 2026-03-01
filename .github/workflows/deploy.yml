@@ -94,7 +94,7 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
             # Wait for health check
-            sleep 10
+            sleep 120
             curl -sf http://localhost/api/health || echo "Health check pending..."
 
       - name: Invalidate CloudFront cache
