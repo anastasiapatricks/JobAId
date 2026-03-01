@@ -71,6 +71,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 30m
           script: |
             # Login to ECR
             echo "${{ steps.ecr.outputs.password }}" | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}
