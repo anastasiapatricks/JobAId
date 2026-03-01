@@ -128,7 +128,7 @@ The Angular dev server will start at `http://localhost:4200`. It connects to the
 #### Frontend Chat Flow
 
 1. The app opens with a welcome message and prompts you to upload a resume
-2. Drag-and-drop a file (PDF/TXT), use the file picker, or paste resume text directly
+2. Drag-and-drop a file (PDF/DOCX/TXT), use the file picker, or paste resume text directly
 3. Your resume is parsed and the assistant greets you with a summary of your skills
 4. Chat naturally — ask to search for jobs, analyze the market, write cover letters, or get a summary
 5. Each agent result appears inline in the chat. You can run the same agent multiple times (e.g. search for different roles, generate multiple cover letters) — all results are preserved
@@ -275,7 +275,8 @@ PracticeModule-Team31/
 │   └── test_sessions.py           # Session lifecycle tests
 ├── infra/
 │   ├── main.tf                    # ECR + EC2 + SG + IAM + CloudWatch
-│   ├── dashboard.tf               # CloudWatch dashboard
+│   ├── cloudfront.tf              # CloudFront CDN distribution (HTTPS)
+│   ├── dashboard.tf               # CloudWatch dashboard (22 widgets)
 │   ├── variables.tf               # Terraform input variables
 │   ├── outputs.tf                 # App URL, SSH, ECR URIs
 │   ├── user_data.sh.tpl           # EC2 bootstrap script
@@ -352,16 +353,18 @@ terraform apply
 
 Terraform creates:
 - 2 ECR repositories (`jobaid-backend`, `jobaid-frontend`)
-- EC2 instance (`t3.small`, ~$0.02/hr) with Docker pre-installed
-- Security group (HTTP port 80, SSH port 22)
+- EC2 instance (`t3.nano`, ~$0.005/hr) with Docker pre-installed
+- CloudFront distribution (HTTPS with AWS-managed SSL certificate, static asset caching)
+- Security group (HTTP port 80, HTTPS port 443, SSH port 22)
 - IAM instance profile (ECR pull + CloudWatch Logs)
 - CloudWatch Log Groups (`/jobaid/backend`, `/jobaid/frontend`) with 7-day retention
 - CloudWatch Alarms (instance health auto-recovery, high CPU)
-- CloudWatch Dashboard (CPU, network, error logs, LLM latency)
+- CloudWatch Dashboard (22 widgets — infrastructure, API health, LLM metrics, pipeline, sessions, guardrails)
 
 After `terraform apply`, note the outputs:
 ```
-app_url        = "http://ec2-x-x-x-x.ap-southeast-1.compute.amazonaws.com"
+app_url        = "https://d1234abcdef.cloudfront.net"
+cloudfront_url = "https://d1234abcdef.cloudfront.net"
 ssh_command    = "ssh -i your-key.pem ec2-user@ec2-x-x-x-x.ap-southeast-1.compute.amazonaws.com"
 ecr_backend_url  = "123456789.dkr.ecr.ap-southeast-1.amazonaws.com/jobaid-backend"
 ecr_frontend_url = "123456789.dkr.ecr.ap-southeast-1.amazonaws.com/jobaid-frontend"
@@ -385,13 +388,13 @@ Add these secrets to the GitHub repository (Settings → Secrets and variables �
 
 #### 4. Deploy
 
-Push to `main` to trigger the full pipeline:
+Trigger a deploy manually from the **Actions tab** → **Deploy** workflow → **Run workflow**:
 
 ```
-Push to main → CI (tests + security scan) → Build & Push to ECR → Deploy to EC2
+Manual trigger → Build & Push to ECR → Deploy to EC2
 ```
 
-Or trigger a manual deploy from the Actions tab using `workflow_dispatch`.
+CI (tests + security scan) runs automatically on every push and PR to `main`.
 
 #### 5. Teardown
 
@@ -406,7 +409,8 @@ terraform destroy
 
 | Resource | Cost |
 |----------|------|
-| EC2 `t3.small` | ~$0.02/hr (~$15/month) |
+| EC2 `t3.nano` | ~$0.005/hr (~$4/month) |
+| CloudFront | Free tier (1 TB/month transfer) |
 | ECR | Free tier (500 MB/month) |
 | CloudWatch Logs | Minimal (7-day retention) |
 | Elastic IP | Not used (free auto-assigned DNS) |
@@ -462,7 +466,7 @@ Triggered on every push and PR to `main`:
 
 ### Deploy — Build, Push, Deploy (`.github/workflows/deploy.yml`)
 
-Triggered on push to `main` or manual dispatch:
+Triggered via **manual dispatch only** (`workflow_dispatch` from the Actions tab):
 
 1. **Build & Push** — builds both Docker images, tags with git SHA + `latest`, pushes to ECR
 2. **Deploy** — SSHs into EC2, pulls latest images, runs `docker compose up -d`, verifies health check
@@ -474,9 +478,19 @@ Triggered on push to `main` or manual dispatch:
 All API requests are logged as structured JSON with:
 - `timestamp`, `request_id`, `method`, `path`, `status`, `duration`
 
-LLM calls are tracked via `utils/llm_logger.py` with:
+LLM calls are instrumented via `logged_invoke()` across all 6 agents and tracked in `utils/llm_logger.py` with:
 - `model`, `task_type`, `prompt_tokens`, `completion_tokens`, `latency_ms`
 - Per-session aggregate summaries (total calls, tokens, latency)
+
+Additional logged events:
+- **Session lifecycle** — create, update, delete, evict (with TTL reason)
+- **Pipeline stages** — stage timing, success/error status per stage
+- **Guardrail triggers** — iteration limits, prompt injection attempts
+- **External API calls** — Adzuna and Tavily requests with timing and result counts
+
+### Session Management
+
+Sessions are automatically evicted after **1 hour of inactivity**. A background reaper task runs every 60 seconds to clean up expired sessions and free resources.
 
 ### Health Check
 
@@ -505,10 +519,12 @@ In production, Docker containers stream logs directly to CloudWatch via the `aws
 - Instance status check (auto-recovers on failure)
 - High CPU (>80% for 5 minutes)
 
-**Dashboard** (`jobaid-dashboard`):
-- EC2 CPU utilization and network I/O
-- Recent backend error logs
-- LLM call latency
+**Dashboard** (`jobaid-dashboard`) — 22 widgets across 5 groups:
+- **Infrastructure** — EC2 CPU utilization, network I/O
+- **API health** — request throughput, error rate (4xx/5xx), latency percentiles (p50/p90/p99), slowest endpoints, recent error details
+- **LLM metrics** — token usage over time, cost by task type, call errors, latency by agent, session summaries
+- **Pipeline & External** — stage timing and latency, Adzuna/Tavily health, latency, and result counts
+- **Operations** — session activity over time, session funnel, guardrail triggers
 
 **Useful CloudWatch Logs Insights queries:**
 
@@ -547,6 +563,8 @@ Salary benchmarks (18 entries) are loaded as structured JSON from `data/seed_sal
 - **httpx** — HTTP client (Adzuna API)
 - **tavily-python** — Tavily web search API (courses, trends, salary, company research)
 - **beautifulsoup4** — HTML parsing
+- **pypdf** — PDF resume parsing
+- **python-docx** — DOCX resume parsing
 - **python-dotenv** — environment variable management
 
 ### Frontend (Node.js 24+)

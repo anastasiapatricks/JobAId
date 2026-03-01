@@ -19,7 +19,9 @@ JobAId is a multi-agent AI system that assists job seekers by automating the end
 - **Real external APIs** — Adzuna job board API, Tavily web search, Wikipedia REST API — with graceful fallbacks
 - **Comprehensive guardrails** — prompt injection detection (7 patterns), PII de-biasing, output validation, bounded autonomy (iteration/retry/LLM-call limits)
 - **Human-in-the-Loop (HITL)** review checkpoints at key pipeline stages
+- **Multi-format resume upload** — supports PDF, DOCX, and plain text files with graceful encoding fallback
 - **Three-tier architecture** — Angular 20 chat UI, FastAPI REST API with SSE streaming, CLI interface
+- **HTTPS via CloudFront** — AWS CloudFront CDN distribution with SSL/TLS termination and static asset caching
 - **Full MLSecOps pipeline** — Docker containerisation, GitHub Actions CI/CD, Terraform infrastructure-as-code, CloudWatch monitoring
 - **92 automated tests** covering unit tests, integration tests, and AI security tests
 
@@ -140,8 +142,15 @@ The system follows a **three-tier architecture** with clear separation of concer
 The system is containerised and deployed to AWS using infrastructure-as-code:
 
 ```
-┌──────────────────────────────────────────────┐
-│              AWS EC2 (t3.small)               │
+                    ┌──────────────┐
+                    │  CloudFront  │
+                    │  (CDN/HTTPS) │
+                    │  - SSL/TLS   │
+                    │  - Cache     │
+                    └──────┬───────┘
+                           │
+┌──────────────────────────▼───────────────────┐
+│              AWS EC2 (t3.nano)                │
 │                                              │
 │  ┌──────────────────┐  ┌──────────────────┐  │
 │  │  Frontend (nginx) │  │  Backend (Python) │  │
@@ -172,13 +181,20 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 - `docker-compose.prod.yml` — Production with ECR image references and `awslogs` driver for CloudWatch
 
 **Infrastructure (Terraform):**
-- EC2 instance (`t3.small`, 2 vCPU, 2 GB RAM) with 2 GB swap file
+- EC2 instance (`t3.nano`, 2 vCPU, 0.5 GB RAM) with 2 GB swap file
+- CloudFront CDN distribution with HTTPS (default certificate), static asset caching (24-hour TTL), and API pass-through (`/api/*` with no cache)
 - ECR repositories for backend and frontend images
-- Security group (HTTP port 80, SSH port 22)
+- Security group (HTTP port 80, HTTPS port 443, SSH port 22)
 - IAM instance profile for ECR pull and CloudWatch Logs access
 - CloudWatch Log Groups with 7-day retention
 - CloudWatch Alarms (instance health auto-recovery, high CPU)
-- CloudWatch Dashboard (CPU, network, error logs, LLM latency)
+- CloudWatch Dashboard with 20+ widgets (CPU, network, API health, LLM metrics, pipeline stages, external API health, session activity, guardrail triggers)
+
+**CloudFront CDN** handles:
+- HTTPS termination with default CloudFront certificate (SSL/TLS encryption for all client traffic)
+- Static asset caching with 24-hour TTL for improved performance
+- API pass-through (`/api/*` forwarded to EC2 origin with no caching, cookie and header forwarding)
+- Price class `PriceClass_200` for cost optimisation
 
 **Nginx reverse proxy** handles:
 - SPA routing (`try_files $uri $uri/ /index.html`)
@@ -187,10 +203,15 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 - LLM timeout accommodation (`proxy_read_timeout 120s`)
 - Resume upload size (`client_max_body_size 10m`)
 
+**Session Management:**
+- In-memory session store with automatic eviction after 1-hour TTL
+- Background reaper thread checks every 60 seconds for expired sessions
+- Session lifecycle events (create, update, delete, evict) logged for auditability
+
 ### 3.3 Data Flow and Integration Points
 
-1. **User → Angular SPA** — Chat messages, resume file upload (drag-drop/paste/file picker)
-2. **Angular → FastAPI** — REST API calls via `HttpClient` with interceptor prepending `apiUrl`
+1. **User → CloudFront → Angular SPA** — HTTPS-encrypted access via CloudFront CDN; chat messages, resume file upload (PDF, DOCX, TXT via drag-drop/paste/file picker)
+2. **Angular → CloudFront → FastAPI** — REST API calls via `HttpClient` with interceptor prepending `apiUrl`; CloudFront forwards `/api/*` requests to EC2 origin with no caching
 3. **FastAPI → LangGraph** — Session state passed through compiled `StateGraph`; orchestrator routes to agents
 4. **Agents → External APIs** — Adzuna (job search), Tavily (web search), Wikipedia (company research), OpenAI (LLM + embeddings)
 5. **Agents → ChromaDB** — Vector similarity search for courses, trends, job matching
@@ -252,6 +273,7 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 - `ChatOpenAI` (GPT-4o) for structured extraction
 - `PII Sanitiser` — strips name, email, phone, and gender indicators to produce `resume_debiased`
 - Input filter validates resume text before processing (length limits, injection detection)
+- `pypdf` and `python-docx` libraries for extracting text from PDF and DOCX files; plain text files decoded with UTF-8 fallback to latin-1
 
 **Fallback Strategy:** If LLM parsing fails, a regex-based fallback extracts basic fields (name, email, skills keywords).
 
@@ -391,6 +413,9 @@ The system aligns with **IMDA's Model AI Governance Framework** principles:
 | 8 | **API Key Exposure** | Secret Management | Low | Critical | Environment variables, `.env` not baked into Docker images | `env_file: .env` in docker-compose; GitHub Secrets for CI/CD; `.env` in `.gitignore` |
 | 9 | **Dependency Vulnerabilities** | Supply Chain | Medium | Medium | Automated dependency scanning in CI | `pip-audit` for Python, `npm audit` for frontend in GitHub Actions CI pipeline |
 | 10 | **Adversarial Job Listings** | External Data | Low | Medium | Output validation on job structure; LLM-powered relevance filtering | `validate_job_discovery_output()` checks required fields; scoring rubric filters irrelevant results |
+| 11 | **Transport Eavesdropping** | Network | Medium | High | HTTPS enforcement via CloudFront CDN with SSL/TLS termination | CloudFront distribution with default certificate; all client traffic encrypted in transit |
+| 12 | **Session Memory Exhaustion** | Denial of Service | Medium | Medium | Automatic session eviction after 1-hour TTL | Background reaper thread checks every 60 seconds; expired sessions removed from in-memory store |
+| 13 | **Unguided User Input** | Input Attack | Medium | Low | Chat input hidden during `awaiting_resume` state; users must use dedicated upload component | `@if (state !== 'awaiting_resume')` prevents free text from being misinterpreted as resume content |
 
 ---
 
@@ -465,14 +490,23 @@ terraform destroy                  # Teardown all resources
 
 **Structured JSON Logging:**
 - Every API request is logged with `timestamp`, `request_id`, `method`, `path`, `status`, `duration`
-- LLM calls are tracked with `model`, `task_type`, `prompt_tokens`, `completion_tokens`, `latency_ms`
+- LLM calls are instrumented via `logged_invoke()` across all 6 agents, capturing `model`, `task_type`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `latency_ms`, and `status`
 - Per-session aggregate summaries (total calls, tokens, latency)
+- Session lifecycle events (create, update, delete, evict) logged for analytics
+- Pipeline stage events (timing, success/error status) logged per agent execution
+- Guardrail triggers (iteration limits, retry limits, LLM call limits, prompt injection attempts) logged for security auditing
+- External API calls (Adzuna job search, Tavily web search) logged with timing and result counts
 
 **CloudWatch Integration:**
 - Container stdout/stderr streams directly to CloudWatch via `awslogs` Docker driver
 - Log Groups: `/jobaid/backend`, `/jobaid/frontend` with 7-day retention
 - Alarms: instance health (auto-recovery), high CPU (>80% for 5 minutes)
-- Dashboard: CPU utilisation, network I/O, error logs, LLM latency
+- Dashboard with 20+ widgets across three groups:
+  - **Infrastructure:** CPU utilisation, network I/O, disk usage
+  - **API Health:** request throughput, error rate (4xx/5xx), latency percentiles (p50/p90/p99), slowest endpoints, recent error details
+  - **LLM Metrics:** token usage over time, token cost by task type, call errors, session summaries, latency by agent, recent LLM calls
+  - **Pipeline & External:** stage timing and latency, external API health and latency (Adzuna, Tavily), result counts
+  - **Operations:** session activity over time, session funnel, guardrail trigger counts
 
 **Health Check Endpoint:**
 
@@ -494,7 +528,11 @@ terraform destroy                  # Teardown all resources
 | Log Type | Source | Format | Destination |
 |---|---|---|---|
 | API request logs | `api/middleware.py` | Structured JSON | stdout → CloudWatch |
-| LLM call logs | `utils/llm_logger.py` | Structured JSON | stdout → CloudWatch |
+| LLM call logs | `utils/llm_logger.py` | Structured JSON (model, task_type, tokens, latency, status) | stdout → CloudWatch |
+| Session lifecycle | `api/dependencies.py` | Structured JSON (create, update, delete, evict) | stdout → CloudWatch |
+| Pipeline stages | `graph/nodes.py` | Structured JSON (stage, timing, status) | stdout → CloudWatch |
+| Guardrail triggers | `guardrails/bounded_autonomy.py`, `guardrails/input_filter.py` | Structured JSON (trigger type, details) | stdout → CloudWatch |
+| External API calls | `tools/job_board_api.py`, `tools/tavily_search.py` | Structured JSON (API, timing, result count) | stdout → CloudWatch |
 | Decision logs | `agents/orchestrator.py` | JSON in session state | API response |
 | Stage history | `models/state.py` | Array in session state | API response |
 | Agent errors | `graph/nodes.py` | JSON error entries | stdout + session state |
@@ -541,6 +579,8 @@ The prompt injection tests validate that all 7 detection patterns correctly reje
 - **RAG integration** — combining ChromaDB vector search with Tavily web search and seed data fallbacks created a robust information retrieval layer
 - **Guardrails** — layered defence (input validation, output validation, bounded autonomy, PII de-biasing) provided defence-in-depth without over-engineering
 - **Containerisation and IaC** — Docker + Terraform enabled reproducible deployments and one-command teardown, keeping cloud costs under control
+- **Comprehensive observability** — structured JSON logging across all agents and 20+ CloudWatch dashboard widgets provided deep visibility into system behaviour, LLM costs, and pipeline performance
+- **Progressive infrastructure hardening** — CloudFront for HTTPS, session TTL eviction, and multi-format file upload support improved production-readiness incrementally
 
 ### 9.2 Challenges Encountered
 
@@ -551,7 +591,7 @@ The prompt injection tests validate that all 7 detection patterns correctly reje
 
 ### 9.3 Future Improvements
 
-- **Persistent storage** — replace in-memory session store with Redis or PostgreSQL for session persistence across restarts
+- **Persistent storage** — replace in-memory session store with Redis or PostgreSQL for session persistence across restarts (currently mitigated by 1-hour TTL eviction)
 - **Streaming LLM responses** — stream agent outputs token-by-token to the UI for better perceived latency
 - **Multi-language support** — extend resume parsing to handle non-English resumes
 - **Fine-tuned models** — train a smaller, specialised model for intent classification to reduce latency and cost compared to GPT-4o-mini
