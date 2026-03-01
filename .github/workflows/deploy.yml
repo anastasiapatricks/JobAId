@@ -95,3 +95,12 @@ jobs:
             # Wait for health check
             sleep 10
             curl -sf http://localhost/api/health || echo "Health check pending..."
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='JobAId CDN'].Id" \
+            --output text)
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"
