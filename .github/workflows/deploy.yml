@@ -92,9 +92,18 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-            # Wait for health check
-            sleep 10
-            curl -sf http://localhost/api/health || echo "Health check pending..."
+            # Wait for health check (retry up to 30 times with 10s intervals)
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost/api/health; then
+                echo "Health check passed!"
+                exit 0
+              fi
+              echo "Attempt $i/30: Health check not ready, waiting 10s..."
+              sleep 10
+            done
+            echo "Health check failed after 5 minutes"
+            docker compose -f docker-compose.prod.yml logs --tail=50
+            exit 1
 
       - name: Invalidate CloudFront cache
         run: |
