@@ -9,6 +9,8 @@ from langchain.schema import SystemMessage, HumanMessage
 
 from models.state import JobAIdState, OrchestratorStage
 from guardrails.bounded_autonomy import BoundedAutonomy
+from guardrails.input_filter import spotlight_wrap
+from guardrails.model_router import get_model_for_task
 from config.settings import settings
 from config.prompts import ORCHESTRATOR_ROUTER_SYSTEM
 from utils import debug, get_latest_results
@@ -229,15 +231,23 @@ def interpret_user_intent(user_message: str, state: dict) -> dict:
     state_summary = _build_state_summary(state)
     system_prompt = ORCHESTRATOR_ROUTER_SYSTEM.format(state_summary=state_summary)
 
+    # LLM call limit check
+    if not _autonomy.record_llm_call():
+        return {
+            "action": "chitchat",
+            "response_text": "Session limit reached. Please start a new session.",
+            "parameters": {},
+        }
+
     llm = ChatOpenAI(
-        model=settings.default_model,
+        model=get_model_for_task("orchestration"),
         api_key=settings.openai_api_key,
         temperature=0.1,
     )
 
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_message),
+        HumanMessage(content=spotlight_wrap(user_message)),
     ]
 
     debug(f"Orchestrator router: interpreting '{user_message}'")

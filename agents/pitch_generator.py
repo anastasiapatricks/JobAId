@@ -6,6 +6,8 @@ import json
 from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
+import logging
+
 from config.settings import settings
 from config.prompts import (
     PITCH_RESEARCH_SYSTEM,
@@ -13,10 +15,14 @@ from config.prompts import (
     PITCH_DRAFT_SYSTEM,
     PITCH_REVIEW_SYSTEM,
 )
+from guardrails.output_filter import validate_pitch_output
+from guardrails.model_router import get_model_for_task
 from tools.tavily_search import search_company
 from tools.wikipedia import get_company_summary
 from utils import debug, get_latest_results
 from utils.llm_logger import logged_invoke
+
+_guard_logger = logging.getLogger("jobaid.guardrails")
 
 
 def _parse_json_response(text: str) -> dict:
@@ -98,8 +104,9 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
 
     company = best_job.get("company", "")
     job_title = best_job.get("title", "the role")
+    from agents.orchestrator import get_autonomy
     candidate_summary = _build_candidate_summary(state)
-    llm = ChatOpenAI(model=settings.default_model, temperature=0.7)
+    llm = ChatOpenAI(model=get_model_for_task("pitch_draft"), temperature=0.7)
 
     draft_pitches = []
 
@@ -120,6 +127,8 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Job description: {best_job.get('description', 'N/A')[:500]}\n"
     )
 
+    if not get_autonomy().record_llm_call():
+        raise RuntimeError("LLM call limit exceeded")
     research_response = logged_invoke(llm, [
         SystemMessage(content=PITCH_RESEARCH_SYSTEM),
         HumanMessage(content=f"{job_context}\n\nCompany info:\n{company_info}"),
@@ -133,6 +142,8 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Job:\n{job_context}\n\n"
         f"Company research:\n{company_research}"
     )
+    if not get_autonomy().record_llm_call():
+        raise RuntimeError("LLM call limit exceeded")
     match_response = logged_invoke(llm, [
         SystemMessage(content=PITCH_MATCH_ANALYSIS_SYSTEM),
         HumanMessage(content=match_prompt),
@@ -150,6 +161,8 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Match analysis:\n{json.dumps(match_analysis, indent=2)}\n\n"
         f"Write a compelling, personalized cover letter."
     )
+    if not get_autonomy().record_llm_call():
+        raise RuntimeError("LLM call limit exceeded")
     draft_response = logged_invoke(llm, [
         SystemMessage(content=PITCH_DRAFT_SYSTEM),
         HumanMessage(content=draft_prompt),
@@ -159,7 +172,10 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # ─── Step 4: Quality Review ───
     debug("Pitch Generator: Step 4 — quality review")
-    review_response = logged_invoke(llm, [
+    if not get_autonomy().record_llm_call():
+        raise RuntimeError("LLM call limit exceeded")
+    review_llm = ChatOpenAI(model=get_model_for_task("pitch_review"), temperature=0.7)
+    review_response = logged_invoke(review_llm, [
         SystemMessage(content=PITCH_REVIEW_SYSTEM),
         HumanMessage(content=f"Review and improve this cover letter:\n\n{draft}"),
     ], "pitch_review")
@@ -168,7 +184,7 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
 
     msg = f"[Pitch Generator] Generated cover letter for {job_title} at {company} (4-step chain: research → analysis → draft → review)."
 
-    return {
+    result = {
         "messages": [
             {"role": "assistant", "content": msg},
             {"role": "assistant", "content": f"=== COVER LETTER ===\n{final_pitch}"},
@@ -176,3 +192,9 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         "draft_pitches": draft_pitches,
         "final_pitch": final_pitch,
     }
+
+    valid, issues = validate_pitch_output(result)
+    if not valid:
+        _guard_logger.warning(f"Pitch output validation issues: {issues}")
+
+    return result

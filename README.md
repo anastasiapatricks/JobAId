@@ -69,7 +69,7 @@ Review stages are optional HITL (Human-in-the-Loop) checkpoints.
 
 ```bash
 git clone <repository-url>
-cd PracticeModule-Team31
+cd <project-root>
 ```
 
 ### 2. Install Dependencies
@@ -196,7 +196,7 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 ## Project Structure
 
 ```
-PracticeModule-Team31/
+<project-root>/
 ├── config/
 │   ├── settings.py              # Pydantic BaseSettings, env vars
 │   └── prompts.py               # All system prompts (single source of truth)
