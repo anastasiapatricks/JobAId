@@ -91,13 +91,14 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   }
 
   async onFileUploaded(file: File): Promise<void> {
-    if (this.state !== 'awaiting_resume') return;
+    this.resetForNewResume();
 
     this.chat.addSystemText(`Uploading ${file.name}...`);
     this.chat.setTyping(true);
 
     try {
       const sessionId = await this.session.ensureSession();
+
       this.api.uploadResume(sessionId, file).subscribe({
         next: (res) => {
           this.chat.setTyping(false);
@@ -107,15 +108,25 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           this.chat.setTyping(false);
-          this.chat.addError(err?.error?.detail || 'Failed to upload resume. Please try again.');
+          this.chat.addError(err?.error?.detail || 'Failed to upload resume.\nPlease try again.');
+          this.state = 'awaiting_resume';
         },
       });
     } catch {
       this.chat.setTyping(false);
-      this.chat.addError('Failed to create session. Is the backend running?');
+      this.chat.addError('Failed to create session.\nIs the backend running?');
+      this.state = 'awaiting_resume';
     }
   }
 
+  private resetForNewResume(): void {
+    this.pipeline.stopPolling();
+    this.chat.clear();
+    this.chat.addWelcome();
+    this.state = 'awaiting_resume';
+    this.resumeText = '';
+    this.session.clear();
+  }
   async onResumePasted(text: string): Promise<void> {
     if (this.state !== 'awaiting_resume') return;
 
