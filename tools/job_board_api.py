@@ -24,6 +24,8 @@ def _normalize_adzuna_job(raw: dict) -> Dict[str, Any]:
         "salary_min": raw.get("salary_min"),
         "salary_max": raw.get("salary_max"),
         "url": raw.get("redirect_url", ""),
+        "created_at": raw.get("created"),
+        "category": raw.get("category", {}).get("label", ""),
         "source": "adzuna",
     }
 

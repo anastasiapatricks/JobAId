@@ -1,70 +1,74 @@
 @use '@angular/material' as mat;
 
+$light-theme: mat.define-theme((color: (primary: mat.$violet-palette,
+        tertiary: mat.$cyan-palette,
+      ),
+    ));
+
+
 html {
-  @include mat.theme((
-    color: (
-      primary: mat.$violet-palette,
-      tertiary: mat.$cyan-palette,
-    ),
-    typography: Roboto,
-    density: 0,
-  ));
+  @include mat.all-component-themes($light-theme);
+  height: 100%;
 }
 
+
 body {
-  color-scheme: light;
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
   margin: 0;
-}
-
-html, body {
   height: 100%;
-  margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
   overflow: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 // Score color utility classes
 .score-high {
-  color: #2e7d32;
-  background-color: #e8f5e9;
+  color: var(--mat-sys-on-primary-container);
+  background-color: var(--mat-sys-primary-container);
 }
+
 .score-medium {
-  color: #f57f17;
-  background-color: #fff8e1;
+  color: var(--mat-sys-on-tertiary-container);
+  background-color: var(--mat-sys-tertiary-container);
 }
+
 .score-low {
-  color: #c62828;
-  background-color: #ffebee;
+  color: var(--mat-sys-on-error-container);
+  background-color: var(--mat-sys-error-container);
 }
 
 // Importance color classes for chips
 .importance-high {
-  --mat-chip-label-text-color: #c62828;
-  background-color: #ffebee !important;
+  --mat-chip-label-text-color: var(--mat-sys-error);
+  background-color: var(--mat-sys-error-container) !important;
 }
+
 .importance-medium {
-  --mat-chip-label-text-color: #f57f17;
-  background-color: #fff8e1 !important;
+  --mat-chip-label-text-color: var(--mat-sys-on-tertiary-container);
+  background-color: var(--mat-sys-tertiary-container) !important;
 }
+
 .importance-low {
-  --mat-chip-label-text-color: #1565c0;
-  background-color: #e3f2fd !important;
+  --mat-chip-label-text-color: var(--mat-sys-on-primary-container);
+  background-color: var(--mat-sys-primary-container) !important;
 }
 
 // Scrollbar styling
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.35);
 }
@@ -81,6 +85,7 @@ html, body {
     display: none !important;
   }
 }
+
 @media (min-width: 769px) {
   .hide-desktop {
     display: none !important;

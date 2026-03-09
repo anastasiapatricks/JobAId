@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, Input } from '@angular/core';
 
 @Component({
   selector: 'jobaid-typing-indicator',
@@ -8,7 +8,7 @@ import { Component } from '@angular/core';
       <span class="dot"></span>
       <span class="dot"></span>
       <span class="dot"></span>
-      <span class="label">Analyzing...</span>
+      <span class="label">{{ message }}</span>
     </div>
   `,
   styles: `
@@ -43,4 +43,6 @@ import { Component } from '@angular/core';
     }
   `,
 })
-export class TypingIndicatorComponent {}
+export class TypingIndicatorComponent {
+  @Input() message = 'Analyzing...';
+}

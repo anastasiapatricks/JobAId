@@ -44,4 +44,5 @@ export interface StepResponse {
   status: string;
   response_text: string;
   action: string;
+  completed_stages: string[];
 }

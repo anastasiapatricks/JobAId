@@ -15,6 +15,8 @@ export interface ChatMessage {
   stageStatus?: PipelineStatusResponse;
   results?: PipelineResults;
   action?: string;
+  completedStages?: string[];
+  showChecklist?: boolean;
   timestamp: Date;
 }
 
@@ -38,8 +40,8 @@ export class ChatService {
     this.addMessage({ type: 'text', sender: 'user', text });
   }
 
-  addSystemText(text: string): void {
-    this.addMessage({ type: 'text', sender: 'system', text });
+  addSystemText(text: string, completedStages?: string[]): void {
+    this.addMessage({ type: 'text', sender: 'system', text, completedStages });
   }
 
   addResumeMessage(resumeText: string, fileName?: string): void {
@@ -50,8 +52,8 @@ export class ChatService {
     this.addMessage({ type: 'stageUpdate', sender: 'system', stageStatus: status });
   }
 
-  addResults(results: PipelineResults, action?: string): void {
-    this.addMessage({ type: 'results', sender: 'system', results, action });
+  addResults(results: PipelineResults, action?: string, completedStages?: string[]): void {
+    this.addMessage({ type: 'results', sender: 'system', results, action, completedStages });
   }
 
   addError(text: string): void {
@@ -73,6 +75,23 @@ export class ChatService {
       id: `msg-${++messageIdCounter}`,
       timestamp: new Date(),
     };
+
+    // Ensure only the latest system message shows the checklist
+    // Inherit completedStages if not provided
+    if (msg.sender === 'system') {
+      if (!msg.completedStages) {
+        const lastMsg = this.messages()[this.messages().length - 1];
+        if (lastMsg?.completedStages) {
+          msg.completedStages = lastMsg.completedStages;
+        }
+      }
+
+      if (msg.completedStages) {
+        msg.showChecklist = true;
+        this.messages.update(msgs => msgs.map(m => ({ ...m, showChecklist: false })));
+      }
+    }
+
     this.messages.update((msgs) => [...msgs, msg]);
   }
 }
