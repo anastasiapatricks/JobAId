@@ -10,12 +10,19 @@ from typing import Dict, Any, List
 from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
+import logging
+
 from config.settings import settings
 from config.prompts import JOB_DISCOVERY_SYSTEM
+from guardrails.input_filter import validate_job_query, spotlight_wrap
+from guardrails.output_filter import validate_job_discovery_output
+from guardrails.model_router import get_model_for_task
 from tools.job_board_api import search_jobs
 from tools.chromadb_tools import upsert_jobs, search_collection
 from utils import debug, get_latest_results
 from utils.llm_logger import logged_invoke
+
+_guard_logger = logging.getLogger("jobaid.guardrails")
 
 
 def _parse_json_response(text: str) -> Any:
@@ -103,6 +110,17 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     job_query = state.get("job_query", "")
     location = state.get("location_preference", "")
+
+    # Input validation
+    valid, error_msg = validate_job_query(job_query)
+    if not valid:
+        return {
+            "messages": [{"role": "assistant", "content": f"[Job Discovery] {error_msg}"}],
+            "job_listings": [],
+            "scored_jobs": [],
+            "errors": list(state.get("errors") or []) + [{"stage": "discovery", "error": error_msg}],
+        }
+
     latest = get_latest_results(state)
     resume_info = latest.get("resume_debiased") or state.get("resume_debiased") or latest.get("resume_info") or state.get("resume_info") or {}
 
@@ -149,14 +167,17 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
 
     user_prompt = (
         f"Candidate profile:\n{resume_summary}\n\n"
-        f"Job query: {job_query}\n"
+        f"Job query: {spotlight_wrap(job_query)}\n"
         f"Location preference: {location or 'Any'}\n\n"
         f"Job listings:\n{jobs_text}\n\n"
         f"Score and rank these jobs for this candidate."
     )
 
     try:
-        llm = ChatOpenAI(model=settings.default_model, temperature=0)
+        from agents.orchestrator import get_autonomy
+        if not get_autonomy().record_llm_call():
+            raise RuntimeError("LLM call limit exceeded")
+        llm = ChatOpenAI(model=get_model_for_task("job_ranking"), temperature=0)
         response = logged_invoke(llm, [
             SystemMessage(content=JOB_DISCOVERY_SYSTEM),
             HumanMessage(content=user_prompt),
@@ -197,10 +218,16 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
     ]
     msg = f"[Job Discovery] Found {len(raw_jobs)} jobs, ranked top {len(top5)}:\n" + "\n".join(lines)
 
-    return {
+    result = {
         "messages": [{"role": "assistant", "content": msg}],
         "job_listings": raw_jobs,
         "scored_jobs": scored,
         "matching_explanation": explanations,
         "fallback_used": fallback_used,
     }
+
+    valid, issues = validate_job_discovery_output(result)
+    if not valid:
+        _guard_logger.warning(f"Job discovery output validation issues: {issues}")
+
+    return result

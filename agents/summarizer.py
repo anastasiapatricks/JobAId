@@ -1,6 +1,7 @@
 """Grounded summarizer with explainability — feeds full session state to the LLM."""
 
 import json
+import logging
 from typing import Dict, Any
 
 from langchain_openai import ChatOpenAI
@@ -8,8 +9,12 @@ from langchain.schema import SystemMessage, HumanMessage
 
 from config.settings import settings
 from config.prompts import SUMMARIZER_SYSTEM
+from guardrails.output_filter import check_grounding
+from guardrails.model_router import get_model_for_task
 from utils import debug
 from utils.llm_logger import logged_invoke
+
+_guard_logger = logging.getLogger("jobaid.guardrails")
 
 
 # Keys to exclude from the context — internal/noisy fields the LLM doesn't need
@@ -38,7 +43,10 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
     context = _build_context(state)
 
     try:
-        llm = ChatOpenAI(model=settings.default_model, temperature=0)
+        from agents.orchestrator import get_autonomy
+        if not get_autonomy().record_llm_call():
+            raise RuntimeError("LLM call limit exceeded")
+        llm = ChatOpenAI(model=get_model_for_task("summarization"), temperature=0)
         response = logged_invoke(llm, [
             SystemMessage(content=SUMMARIZER_SYSTEM),
             HumanMessage(content=f"Session data:\n\n{context}\n\nGenerate the final report."),
@@ -47,6 +55,11 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         debug(f"Summarizer LLM error: {exc}")
         summary_text = f"=== JobAId Summary ===\n\n{context}"
+
+    # Grounding check — verify summary references state data
+    grounding_score = check_grounding(summary_text, state)
+    if grounding_score < 0.5:
+        _guard_logger.warning(f"Low grounding score: {grounding_score:.2f}")
 
     # Append decision log if present
     log = state.get("decision_log") or []

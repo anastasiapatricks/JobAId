@@ -6,12 +6,18 @@ from typing import Dict, Any
 from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
+import logging
+
 from config.settings import settings
 from config.prompts import RESUME_PARSER_SYSTEM, RESUME_PARSER_CONFIDENCE
 from guardrails.input_filter import spotlight_wrap, validate_resume_text
+from guardrails.output_filter import validate_resume_output
+from guardrails.model_router import get_model_for_task
 from tools.pii_sanitizer import strip_pii
 from utils import debug
 from utils.llm_logger import logged_invoke
+
+_guard_logger = logging.getLogger("jobaid.guardrails")
 
 
 def load_resume_from_file(path: str) -> str:
@@ -52,10 +58,13 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
             "errors": list(state.get("errors") or []) + [{"stage": "parsing", "error": error_msg}],
         }
 
-    llm = ChatOpenAI(model=settings.default_model, temperature=0)
+    from agents.orchestrator import get_autonomy
+    llm = ChatOpenAI(model=get_model_for_task("resume_parsing"), temperature=0)
 
     # Step 1: Extract structured resume info
     debug("Resume Parser: extracting structured info via LLM")
+    if not get_autonomy().record_llm_call():
+        raise RuntimeError("LLM call limit exceeded")
     extraction_response = logged_invoke(llm, [
         SystemMessage(content=RESUME_PARSER_SYSTEM),
         HumanMessage(content=spotlight_wrap(resume_text)),
@@ -69,6 +78,8 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Step 2: Assess confidence
     debug("Resume Parser: assessing confidence")
+    if not get_autonomy().record_llm_call():
+        raise RuntimeError("LLM call limit exceeded")
     confidence_response = logged_invoke(llm, [
         SystemMessage(content=RESUME_PARSER_CONFIDENCE),
         HumanMessage(content=json.dumps(resume_info, indent=2)),
@@ -105,6 +116,10 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
     }
     if requires_review:
         result["requires_human_approval"] = True
+
+    valid, issues = validate_resume_output(result)
+    if not valid:
+        _guard_logger.warning(f"Resume output validation issues: {issues}")
 
     return result
 

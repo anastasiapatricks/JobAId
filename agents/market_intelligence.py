@@ -8,6 +8,8 @@ from langchain.schema import SystemMessage, HumanMessage
 
 from config.settings import settings
 from config.prompts import MARKET_INTELLIGENCE_SYSTEM
+from guardrails.input_filter import validate_job_query
+from guardrails.model_router import get_model_for_task
 from tools.chromadb_tools import search_collection
 from tools.tavily_search import search_courses, search_trends, search_salary
 from utils import debug, get_latest_results
@@ -108,6 +110,19 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
     candidate_skills = _get_candidate_skills(state)
     job_requirements = _get_top_job_requirements(state)
     job_query = state.get("job_query", "")
+
+    # Input validation
+    valid, error_msg = validate_job_query(job_query)
+    if not valid:
+        return {
+            "messages": [{"role": "assistant", "content": f"[Market Intelligence] {error_msg}"}],
+            "skill_gaps": [],
+            "upskilling_roadmap": [],
+            "salary_insights": {},
+            "industry_trends": [],
+            "market_outlook": "",
+        }
+
     latest = get_latest_results(state)
     resume_info = latest.get("resume_info") or state.get("resume_info") or {}
     years_exp = resume_info.get("years_of_experience")
@@ -192,7 +207,10 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
     user_prompt = "\n".join(prompt_parts)
 
     try:
-        llm = ChatOpenAI(model=settings.default_model, temperature=0)
+        from agents.orchestrator import get_autonomy
+        if not get_autonomy().record_llm_call():
+            raise RuntimeError("LLM call limit exceeded")
+        llm = ChatOpenAI(model=get_model_for_task("market_intelligence"), temperature=0)
         response = logged_invoke(llm, [
             SystemMessage(content=MARKET_INTELLIGENCE_SYSTEM),
             HumanMessage(content=user_prompt),
