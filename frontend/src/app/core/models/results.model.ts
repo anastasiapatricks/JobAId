@@ -5,7 +5,12 @@ export interface ScoredJob {
   score: number;
   explanation?: string;
   keywords?: string[];
+  description?: string;
   url?: string;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  created_at?: string;
+  category?: string;
   source?: string;
 }
 
@@ -65,4 +70,5 @@ export interface PipelineResults {
   last_action?: string;
   resume_info?: Record<string, unknown> | null;
   results: ResultEntry[];
+  completed_stages?: string[];
 }

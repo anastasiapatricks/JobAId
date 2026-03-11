@@ -56,10 +56,12 @@ export class SummaryCardComponent implements OnChanges {
   @Input({ required: true }) summary = '';
   renderedHtml: SafeHtml = '';
 
-  constructor(private sanitizer: DomSanitizer) {}
+  constructor(private sanitizer: DomSanitizer) { }
 
   ngOnChanges(): void {
     const raw = marked.parse(this.summary, { async: false }) as string;
-    this.renderedHtml = this.sanitizer.bypassSecurityTrustHtml(raw);
+    // Ensure all links open in a new tab
+    const processedHtml = raw.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
+    this.renderedHtml = this.sanitizer.bypassSecurityTrustHtml(processedHtml);
   }
 }

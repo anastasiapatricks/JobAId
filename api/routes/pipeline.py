@@ -1,5 +1,7 @@
 """Pipeline execution endpoints — run, status, approve, results, step."""
 
+from typing import List
+
 import threading
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
@@ -33,6 +35,30 @@ _ACTION_NODES = {
     "summarizing": summarizer_node,
 }
 
+_STAGE_LABELS = {
+    "parsing": "Resume Parsing",
+    "discovery": "Job Search",
+    "market_intel": "Market Analysis",
+    "pitching": "Cover Letter",
+    "summarizing": "Final Summary",
+}
+
+
+def _get_completed_stages(state: dict) -> List[str]:
+    """Determine which canonical stages have been completed."""
+    completed = []
+    # Check top-level state or results array
+    results = state.get("results", [])
+    completed_actions = {r.get("action") for r in results}
+    
+    for stage in _STAGE_LABELS.keys():
+        if stage in completed_actions:
+            completed.append(stage)
+        elif stage == "parsing" and state.get("resume_info"):
+            completed.append(stage)
+            
+    return completed
+
 
 def _run_pipeline(session_id: str, state: dict):
     """Run the full pipeline synchronously (called from background task)."""
@@ -59,6 +85,8 @@ def _run_single_step(session_id: str, action: str, state: dict):
             return
 
         state["last_action"] = action
+        state["current_stage"] = action
+        update_session(session_id, status="running", state=state)
         result = node_fn(state)
 
         # Append result to the results array instead of merging flat
@@ -109,6 +137,8 @@ async def run_pipeline(session_id: str, req: PipelineRunRequest, background_task
 
     def _parse_and_await():
         try:
+            initial_state["current_stage"] = "parsing"
+            update_session(session_id, status="running", state=initial_state)
             result = resume_parser_node(initial_state)
             # Append parse result to the results array
             results_arr = list(initial_state.get("results", []))
@@ -157,6 +187,7 @@ async def step(session_id: str, req: StepRequest):
             status="awaiting_input",
             response_text=response_text,
             action=action,
+            completed_stages=_get_completed_stages(state)
         )
 
     # Apply extracted parameters to state
@@ -188,6 +219,7 @@ async def step(session_id: str, req: StepRequest):
         status="running",
         response_text=response_text,
         action=action,
+        completed_stages=_get_completed_stages(state)
     )
 
 
@@ -242,4 +274,5 @@ async def get_results(session_id: str):
         last_action=state.get("last_action"),
         resume_info=state.get("resume_info"),
         results=result_entries,
+        completed_stages=_get_completed_stages(state)
     )

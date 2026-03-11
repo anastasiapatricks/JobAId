@@ -65,7 +65,12 @@ class ScoredJob(BaseModel):
     score: int = 0
     explanation: str = ""
     keywords: List[str] = Field(default_factory=list)
+    description: Optional[str] = None
     url: Optional[str] = None
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
+    created_at: Optional[str] = None
+    category: Optional[str] = None
     source: str = "mock"
 
 
