@@ -62,6 +62,7 @@ class PipelineResultsResponse(BaseModel):
     last_action: Optional[str] = None
     resume_info: Optional[Dict[str, Any]] = None
     results: List[ResultEntry] = Field(default_factory=list)
+    completed_stages: List[str] = Field(default_factory=list)
 
 
 class StepRequest(BaseModel):
@@ -73,6 +74,7 @@ class StepResponse(BaseModel):
     status: str          # "running" | "awaiting_input" | "complete"
     response_text: str   # bot message to display
     action: str          # what orchestrator decided
+    completed_stages: List[str] = Field(default_factory=list)
 
 
 class ResumeUploadResponse(BaseModel):

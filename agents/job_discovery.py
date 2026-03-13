@@ -95,7 +95,12 @@ def _fallback_score(resume_info: dict, job: dict) -> dict:
         "score": score,
         "explanation": f"Skill overlap: {', '.join(overlap)}" if overlap else "No direct skill overlap found",
         "keywords": job.get("keywords", []),
+        "description": job.get("description", ""),
         "url": job.get("url", ""),
+        "salary_min": job.get("salary_min"),
+        "salary_max": job.get("salary_max"),
+        "created_at": job.get("created_at"),
+        "category": job.get("category"),
         "source": job.get("source", "mock"),
     }
 
@@ -158,10 +163,17 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Step 3: LLM ranking
     resume_summary = _build_resume_summary(state)
+    
+    # Add temporary IDs for robust recovery
+    for i, j in enumerate(raw_jobs):
+        j["_ref_id"] = f"job_{i}"
+
     jobs_text = json.dumps([
-        {"title": j.get("title"), "company": j.get("company"), "location": j.get("location"),
-         "keywords": j.get("keywords", []), "description": j.get("description", "")[:200],
-         "url": j.get("url", "")}
+        {"ref_id": j["_ref_id"], "title": j.get("title"), "company": j.get("company"), 
+         "location": j.get("location"), "keywords": j.get("keywords", []), 
+         "description": j.get("description", "")[:250], "url": j.get("url", ""), 
+         "salary_min": j.get("salary_min"), "salary_max": j.get("salary_max"),
+         "created_at": j.get("created_at"), "category": j.get("category")}
         for j in raw_jobs
     ], indent=2)
 
@@ -170,7 +182,7 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Job query: {spotlight_wrap(job_query)}\n"
         f"Location preference: {location or 'Any'}\n\n"
         f"Job listings:\n{jobs_text}\n\n"
-        f"Score and rank these jobs for this candidate."
+        f"Score and rank these jobs for this candidate. Include the 'ref_id' for each job in your response."
     )
 
     try:
@@ -184,21 +196,46 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
         ], "job_ranking")
         scored = _parse_json_response(response.content)
         if isinstance(scored, list) and scored:
-            # Build lookup to recover URLs the LLM may have dropped
-            url_lookup = {}
-            for j in raw_jobs:
-                key = (j.get("title", "").lower().strip(), j.get("company", "").lower().strip())
-                if j.get("url"):
-                    url_lookup[key] = j["url"]
-
             # Ensure all required fields
             for item in scored:
                 item.setdefault("source", source)
                 item.setdefault("keywords", [])
-                # Recover URL from raw jobs if the LLM dropped it
-                if not item.get("url"):
-                    key = (item.get("title", "").lower().strip(), item.get("company", "").lower().strip())
-                    item["url"] = url_lookup.get(key, "")
+                
+                # Recover full data from raw jobs using ref_id (preferred) or fuzzy match
+                matching_raw = None
+                ref_id = item.get("ref_id") or item.get("id")
+                if ref_id:
+                    # Search by ref_id
+                    matching_raw = next((j for j in raw_jobs if j.get("_ref_id") == ref_id), None)
+                    if not matching_raw and isinstance(ref_id, (int, str)):
+                        # Fallback for int IDs if LLM stripped prefix
+                        try:
+                            idx = int(str(ref_id).replace("job_", ""))
+                            if 0 <= idx < len(raw_jobs):
+                                matching_raw = raw_jobs[idx]
+                        except (ValueError, TypeError):
+                            pass
+                
+                if not matching_raw:
+                    # Fallback to key-based match
+                    title = item.get("title", "").lower().strip()
+                    company = item.get("company", "").lower().strip()
+                    matching_raw = next((j for j in raw_jobs if j.get("title", "").lower().strip() == title and j.get("company", "").lower().strip() == company), None)
+                
+                if matching_raw:
+                    # Overwrite/Set all critical fields from raw source to ensure data integrity
+                    item["url"] = matching_raw.get("url") or item.get("url") or ""
+                    item["description"] = matching_raw.get("description") or item.get("description") or ""
+                    item["company"] = matching_raw.get("company") or item.get("company") or ""
+                    item["title"] = matching_raw.get("title") or item.get("title") or ""
+                    item["location"] = matching_raw.get("location") or item.get("location") or ""
+                    item["salary_min"] = matching_raw.get("salary_min")
+                    item["salary_max"] = matching_raw.get("salary_max")
+                    item["created_at"] = matching_raw.get("created_at")
+                    item["category"] = matching_raw.get("category")
+                
+                item.setdefault("url", "")
+            debug(f"Job Discovery: recovered details for {len([i for i in scored if i.get('url')])} jobs")
             scored.sort(key=lambda x: -x.get("score", 0))
         else:
             raise ValueError("LLM returned empty or non-list response")
@@ -208,20 +245,19 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
         scored.sort(key=lambda x: -x.get("score", 0))
         fallback_used.append("fallback_scoring")
 
-    top5 = scored[:5]
-    explanations = [f"{j.get('title')} @ {j.get('company')}: {j.get('explanation', '')}" for j in top5]
+    top10 = scored[:10]
+    explanations = [f"{j.get('title')} @ {j.get('company')}: {j.get('explanation', '')}" for j in top10]
 
-    # Build display message
     lines = [
         f"{i+1}. {j.get('title', '?')} @ {j.get('company', '?')} — {j.get('score', '?')}/100"
-        for i, j in enumerate(top5)
+        for i, j in enumerate(top10)
     ]
-    msg = f"[Job Discovery] Found {len(raw_jobs)} jobs, ranked top {len(top5)}:\n" + "\n".join(lines)
+    msg = f"[Job Discovery] Found {len(raw_jobs)} jobs, ranked top {len(top10)}:\n" + "\n".join(lines)
 
     result = {
         "messages": [{"role": "assistant", "content": msg}],
         "job_listings": raw_jobs,
-        "scored_jobs": scored,
+        "scored_jobs": top10,
         "matching_explanation": explanations,
         "fallback_used": fallback_used,
     }

@@ -57,7 +57,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       gap: 8px;
       padding: 12px 16px;
       background: var(--mat-sys-surface);
-      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      border-top: 1px solid var(--mat-sys-outline-variant);
     }
     .message-field {
       flex: 1;

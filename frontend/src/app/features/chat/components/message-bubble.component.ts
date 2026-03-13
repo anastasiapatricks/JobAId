@@ -5,6 +5,7 @@ import { ChatMessage } from '../../../core/services/chat.service';
 import { ResumePreviewComponent } from '../../resume/resume-preview.component';
 import { PipelineProgressComponent } from '../../pipeline/pipeline-progress.component';
 import { ResultsContainerComponent } from '../../results/results-container.component';
+import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
 
 @Component({
   selector: 'jobaid-message-bubble',
@@ -17,44 +18,63 @@ import { ResultsContainerComponent } from '../../results/results-container.compo
           <mat-icon>smart_toy</mat-icon>
         </div>
       }
-      @if (message.type === 'results') {
-        <div class="results-bubble">
-          @if (message.results) {
-            <jobaid-results-container [results]="message.results" [action]="message.action ?? ''"></jobaid-results-container>
-          }
-        </div>
-      } @else {
-        <div class="bubble" [class.wide]="message.type === 'stageUpdate' || message.type === 'resume'">
-          @switch (message.type) {
-            @case ('welcome') {
-              <div class="welcome-text">
-                <mat-icon class="welcome-icon">waving_hand</mat-icon>
-                <p>{{ message.text }}</p>
-              </div>
+
+      <div class="message-content">
+        @if (message.type === 'results') {
+          <div class="results-bubble">
+            @if (message.results) {
+              <jobaid-results-container [results]="message.results" [action]="message.action ?? ''"></jobaid-results-container>
             }
-            @case ('text') {
-              <p class="text-content">{{ message.text }}</p>
-            }
-            @case ('resume') {
-              <jobaid-resume-preview
-                [resumeText]="message.resumeText || ''"
-                [fileName]="message.fileName"
-              ></jobaid-resume-preview>
-            }
-            @case ('stageUpdate') {
-              @if (message.stageStatus) {
-                <jobaid-pipeline-progress [currentStage]="message.stageStatus.current_stage"></jobaid-pipeline-progress>
+          </div>
+        } @else if (message.type === 'resume') {
+          <div class="resume-bubble-container">
+            <jobaid-resume-preview
+              [resumeText]="message.resumeText || ''"
+              [fileName]="message.fileName"
+            ></jobaid-resume-preview>
+          </div>
+        } @else {
+          <div class="bubble" [class.wide]="message.type === 'stageUpdate'">
+            @switch (message.type) {
+              @case ('welcome') {
+                <div class="welcome-text">
+                  <mat-icon class="welcome-icon">waving_hand</mat-icon>
+                  <p>{{ message.text }}</p>
+                </div>
+              }
+              @case ('text') {
+                <p class="text-content">{{ message.text }}</p>
+              }
+              @case ('stageUpdate') {
+                @if (message.stageStatus) {
+                  <jobaid-pipeline-progress [currentStage]="message.stageStatus.current_stage"></jobaid-pipeline-progress>
+                }
+              }
+              @case ('error') {
+                <div class="error-content">
+                  <mat-icon>error_outline</mat-icon>
+                  <p>{{ message.text }}</p>
+                </div>
               }
             }
-            @case ('error') {
-              <div class="error-content">
-                <mat-icon>error_outline</mat-icon>
-                <p>{{ message.text }}</p>
-              </div>
-            }
-          }
-        </div>
-      }
+          </div>
+        }
+
+        @if (message.sender === 'system' && message.type !== 'stageUpdate' && message.completedStages && message.showChecklist) {
+          <div class="next-steps-checklist">
+            <div class="checklist-header">Career Roadmap Status:</div>
+            <div class="checklist-items">
+              @for (stage of stages; track stage.stage) {
+                <div class="checklist-item" [class.completed]="isCompleted(stage.stage)">
+                  <mat-icon>{{ isCompleted(stage.stage) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                  <span>{{ stage.label }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
       @if (message.sender === 'user') {
         <div class="avatar user-avatar">
           <mat-icon>person</mat-icon>
@@ -66,14 +86,25 @@ import { ResultsContainerComponent } from '../../results/results-container.compo
     .message {
       display: flex;
       gap: 10px;
-      margin-bottom: 16px;
+      margin-bottom: 24px;
       max-width: 100%;
+      align-items: flex-start;
     }
     .message.user {
       justify-content: flex-end;
     }
     .message.system {
       justify-content: flex-start;
+    }
+    .message-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      gap: 12px;
+    }
+    .message.user .message-content {
+      align-items: flex-end;
     }
     .avatar {
       flex-shrink: 0;
@@ -92,25 +123,25 @@ import { ResultsContainerComponent } from '../../results/results-container.compo
       color: var(--mat-sys-on-tertiary);
     }
     .bubble {
-      max-width: 70%;
+      max-width: 80%;
       padding: 12px 16px;
       border-radius: 18px;
       line-height: 1.5;
       overflow: hidden;
     }
     .bubble.wide {
-      max-width: 85%;
+      max-width: 90%;
     }
     .system .bubble {
       background: var(--mat-sys-surface-container);
-      border-radius: 18px 18px 18px 4px;
+      border-radius: 0 18px 18px 18px;
     }
     .user .bubble {
       background: var(--mat-sys-primary-container);
       color: var(--mat-sys-on-primary-container);
-      border-radius: 18px 18px 4px 18px;
+      border-radius: 18px 0 18px 18px;
     }
-    .results-bubble {
+    .results-bubble, .resume-bubble-container {
       flex: 1;
       min-width: 0;
       padding: 8px 0;
@@ -138,8 +169,55 @@ import { ResultsContainerComponent } from '../../results/results-container.compo
       mat-icon { flex-shrink: 0; }
       p { margin: 0; }
     }
+    .next-steps-checklist {
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--mat-sys-surface-container-low);
+      border-radius: 12px;
+      border: 1px solid var(--mat-sys-outline-variant);
+      width: 100%;
+    }
+    .checklist-header {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--mat-sys-on-surface-variant);
+      margin-bottom: 8px;
+    }
+    .checklist-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--mat-sys-on-surface-variant);
+      opacity: 0.6;
+      
+      mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+      
+      &.completed {
+        opacity: 1;
+        color: var(--mat-sys-primary);
+        font-weight: 500;
+      }
+    }
   `,
 })
 export class MessageBubbleComponent {
   @Input({ required: true }) message!: ChatMessage;
+
+  protected readonly stages = PIPELINE_DISPLAY_STAGES;
+
+  isCompleted(stage: string): boolean {
+    return this.message.completedStages?.includes(stage) ?? false;
+  }
 }

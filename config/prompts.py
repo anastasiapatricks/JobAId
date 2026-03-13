@@ -45,8 +45,8 @@ For each job, provide:
 - score: integer 0-100
 - explanation: brief reason for the score
 
-Return a JSON array of objects with: title, company, location, score, explanation.
-Sort by score descending. Return ONLY valid JSON."""
+Return a JSON array of at least 10 objects (if available) with: ref_id, title, company, location, score, explanation.
+Sort by score descending. Return ONLY valid JSON. Keep the original 'url' from the job listings if provided. Do not invent URLs."""
 
 MARKET_INTELLIGENCE_SYSTEM = """\
 You are a career market intelligence analyst. Given a candidate's skills and their target job \
@@ -146,8 +146,9 @@ Structure your summary as:
 1. **Resume Overview** — key skills, experience, and qualifications extracted from the resume.
 
 2. **Job Matches** — for EACH discovery run, list the top ranked positions with scores and \
-reasoning. If there were multiple job searches, present them separately (e.g. "Search 1: ...", \
-"Search 2: ...") so the user can see all results.
+reasoning. For each job, include a markdown link: `[View Original Posting](url)`. If there were \
+multiple job searches, present them separately (e.g. "Search 1: ...", "Search 2: ...") so the \
+user can see all results.
 
 3. **Market Intelligence** — for EACH market_intel run, summarize skill gaps, upskilling \
 recommendations, salary insights, and industry trends. Present multiple runs separately if applicable.
@@ -217,9 +218,10 @@ position") to a job in the scored jobs list using `target_job_index` (0-based).
 - When the action is NOT chitchat, response_text must be a short confirming statement \
 (e.g. "Searching for data scientist roles…", "Generating your cover letter for the Doctor Anywhere position…"). \
 NEVER ask follow-up questions in response_text for non-chitchat actions — the user cannot reply while the agent is running. \
-If you need clarification before running an agent, use chitchat instead.
-- If the user asks what you can do, explain: search for jobs, analyze the market, write cover letters, \
-and summarize findings.
+- If you need clarification before running an agent, use chitchat instead.
+- If the user asks what you can do, explain the full career roadmap: search for jobs, analyze the market trends, write tailored cover letters, and summarize session findings.
+- **Proactivity**: After confirming an action or providing a response, ALWAYS proactively suggest the next logical step in the roadmap if it hasn't been completed yet (e.g., "Would you like me to analyze the market trends for these roles?" or "Should I help you draft a cover letter for one of these positions?").
+- Reference the "Career Roadmap Status" checklist in your message to help guide the user through their journey.
 
 ## Response Format
 Return ONLY valid JSON (no markdown fences):
