@@ -27,6 +27,7 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
         [messages]="chat.messages()"
         [isTyping]="chat.isTyping()"
         [typingMessage]="typingMessage"
+        (suggestionClicked)="onSuggestionClicked($event)"
       ></jobaid-message-list>
 
       @if (state === 'running') {
@@ -177,6 +178,55 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     this.startParsing();
   }
 
+  private generateJobSuggestions(resumeInfo: Record<string, any>): string[] {
+    const suggestions: string[] = [];
+    const seen = new Set<string>();
+
+    // Extract from experience titles
+    const experience = resumeInfo['experience'] || [];
+    for (const exp of experience) {
+      const title = (exp['title'] || '').toLowerCase();
+      if (title && !seen.has(title)) {
+        seen.add(title);
+        // Clean up and capitalize
+        const clean = title.replace(/\b(senior|junior|lead|principal|staff|deputy|intern)\b/gi, '').trim();
+        if (clean.length > 3) {
+          suggestions.push(`Find ${clean} jobs`);
+        }
+      }
+    }
+
+    // Extract from professional summary keywords
+    const summary = (resumeInfo['professional_summary'] || '').toLowerCase();
+    const domainKeywords = [
+      'malware analysis', 'incident response', 'digital forensics', 'threat intelligence',
+      'penetration testing', 'cybersecurity', 'data science', 'machine learning',
+      'software engineering', 'backend', 'frontend', 'full stack', 'devops',
+      'cloud architecture', 'data engineering', 'product management', 'project management',
+      'business analysis', 'financial analysis', 'marketing', 'ux design', 'ui design',
+    ];
+    for (const kw of domainKeywords) {
+      if (summary.includes(kw) && !seen.has(kw)) {
+        seen.add(kw);
+        suggestions.push(`Find ${kw} jobs`);
+      }
+    }
+
+    // Limit to 5 and ensure at least one generic fallback
+    const result = suggestions.slice(0, 5);
+    if (result.length < 3) {
+      const skills = (resumeInfo['skills']?.['technical'] || []).slice(0, 2);
+      if (skills.length > 0) {
+        result.push(`Find ${skills.join(' and ')} jobs`);
+      }
+    }
+    return result.slice(0, 5);
+  }
+
+  onSuggestionClicked(suggestion: string): void {
+    this.onMessageSent(suggestion);
+  }
+
   async onMessageSent(text: string): Promise<void> {
     this.chat.addUserText(text);
 
@@ -258,11 +308,15 @@ export class ChatPageComponent implements OnInit, OnDestroy {
               if (skills.length > 0) {
                 greeting += ` I can see you have experience with ${skills.join(', ')}.`;
               }
-              greeting += '\n\nWhat would you like to do? You can ask me to:\n- Search for jobs (e.g., "Find Python developer jobs in Singapore")\n- Analyze market trends (e.g., "What\'s the fintech job market like?")\n- Write a cover letter (after finding jobs)\n- Summarize your session results';
-              this.chat.addSystemText(greeting, completed);
+              greeting += '\n\nHere are some job searches based on your profile, or type your own:';
+
+              // Generate job search suggestions from resume data
+              const suggestions = this.generateJobSuggestions(resumeInfo);
+              const msg: any = { type: 'text', sender: 'system', text: greeting, completedStages: completed, suggestions };
+              this.chat['addMessage'](msg);
             } else {
               this.chat.addSystemText(
-                'Resume parsed! What would you like to do? Try asking me to search for jobs, analyze the market, or write a cover letter.',
+                'Resume parsed! What kind of jobs are you looking for?',
                 completed
               );
             }

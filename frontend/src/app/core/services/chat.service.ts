@@ -17,6 +17,7 @@ export interface ChatMessage {
   action?: string;
   completedStages?: string[];
   showChecklist?: boolean;
+  suggestions?: string[];
   timestamp: Date;
 }
 
