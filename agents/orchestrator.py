@@ -265,8 +265,10 @@ def interpret_user_intent(user_message: str, state: dict) -> dict:
             from langchain.schema import AIMessage
             messages.append(AIMessage(content=content))
 
-    # Add the current user message
-    messages.append(HumanMessage(content=spotlight_wrap(user_message)))
+    # Add the current user message with a JSON reminder since conversation
+    # history can cause the model to drift into plain-text chat mode
+    wrapped = spotlight_wrap(user_message)
+    messages.append(HumanMessage(content=f"{wrapped}\n\nRespond with ONLY valid JSON matching the Response Format above."))
 
     debug(f"Orchestrator router: interpreting '{user_message}' (with {len(recent_messages)} history msgs)")
     response = logged_invoke(llm, messages, "intent_routing")
