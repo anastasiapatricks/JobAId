@@ -71,7 +71,7 @@ def _lookup_salary(job_query: str, years_exp: int | None) -> Dict[str, Any]:
     if years_exp is not None:
         if years_exp <= 2:
             level = "junior"
-        elif years_exp <= 6:
+        elif years_exp <= 5:
             level = "mid"
         else:
             level = "senior"

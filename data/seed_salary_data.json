@@ -135,6 +135,114 @@
     "location": "Singapore"
   },
   {
+    "role": "Cybersecurity Analyst",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 150000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Malware Analyst",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 132000,
+    "median_salary": 108000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Malware Analyst",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 192000,
+    "median_salary": 156000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Incident Response",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 138000,
+    "median_salary": 108000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Incident Response",
+    "level": "senior",
+    "min_salary": 138000,
+    "max_salary": 204000,
+    "median_salary": 168000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Threat Intelligence Analyst",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 132000,
+    "median_salary": 102000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Threat Intelligence Analyst",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 192000,
+    "median_salary": 156000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Security Engineer",
+    "level": "mid",
+    "min_salary": 90000,
+    "max_salary": 144000,
+    "median_salary": 114000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Security Engineer",
+    "level": "senior",
+    "min_salary": 144000,
+    "max_salary": 216000,
+    "median_salary": 180000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Penetration Tester",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 132000,
+    "median_salary": 108000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Digital Forensics",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 126000,
+    "median_salary": 102000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
+    "role": "Digital Forensics",
+    "level": "senior",
+    "min_salary": 126000,
+    "max_salary": 192000,
+    "median_salary": 156000,
+    "currency": "SGD",
+    "location": "Singapore"
+  },
+  {
     "role": "QA Engineer",
     "level": "mid",
     "min_salary": 60000,
