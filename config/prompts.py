@@ -1,4 +1,11 @@
-"""All system prompts — single source of truth."""
+"""All system prompts — single source of truth.
+
+Prompt versioning enables rollback and A/B evaluation in the LLMSecOps pipeline.
+Each versioned prompt has a corresponding VERSION constant logged with every LLM call.
+"""
+
+# --- Prompt Versions (for MLSecOps traceability) ---
+MARKET_INTELLIGENCE_PROMPT_VERSION = "1.0.0"
 
 RESUME_PARSER_SYSTEM = """\
 You are a professional resume parser. Extract structured information from the resume text provided.

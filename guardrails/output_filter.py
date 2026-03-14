@@ -42,6 +42,66 @@ def validate_pitch_output(result: Dict[str, Any]) -> Tuple[bool, List[str]]:
     return (len(issues) == 0, issues)
 
 
+def validate_market_intel_output(result: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    """Validate market intelligence output has required structure and data quality."""
+    issues = []
+
+    # skill_gaps validation
+    skill_gaps = result.get("skill_gaps", [])
+    if not isinstance(skill_gaps, list):
+        issues.append("skill_gaps is not a list")
+    else:
+        for i, gap in enumerate(skill_gaps[:10]):
+            if not isinstance(gap, dict):
+                issues.append(f"skill_gaps[{i}] is not a dict")
+                continue
+            if not gap.get("skill"):
+                issues.append(f"skill_gaps[{i}] missing 'skill'")
+            if gap.get("importance") and gap["importance"] not in ("high", "medium", "low"):
+                issues.append(f"skill_gaps[{i}] invalid importance: {gap['importance']}")
+            if gap.get("category") and gap["category"] not in ("technical", "soft", "certification"):
+                issues.append(f"skill_gaps[{i}] invalid category: {gap['category']}")
+
+    # upskilling_roadmap validation
+    roadmap = result.get("upskilling_roadmap", [])
+    if not isinstance(roadmap, list):
+        issues.append("upskilling_roadmap is not a list")
+    else:
+        for i, item in enumerate(roadmap[:10]):
+            if not isinstance(item, dict):
+                issues.append(f"upskilling_roadmap[{i}] is not a dict")
+                continue
+            if not item.get("skill"):
+                issues.append(f"upskilling_roadmap[{i}] missing 'skill'")
+            if "priority" in item and not isinstance(item["priority"], (int, float)):
+                issues.append(f"upskilling_roadmap[{i}] priority is not a number")
+
+    # salary_insights validation
+    salary = result.get("salary_insights", {})
+    if salary and not isinstance(salary, dict):
+        issues.append("salary_insights is not a dict")
+    elif isinstance(salary, dict) and salary:
+        for field in ("min_salary", "max_salary", "median_salary"):
+            val = salary.get(field)
+            if val is not None and not isinstance(val, (int, float)):
+                issues.append(f"salary_insights.{field} is not a number")
+        if salary.get("min_salary") and salary.get("max_salary"):
+            if salary["min_salary"] > salary["max_salary"]:
+                issues.append("salary_insights.min_salary > max_salary")
+
+    # industry_trends validation
+    trends = result.get("industry_trends", [])
+    if not isinstance(trends, list):
+        issues.append("industry_trends is not a list")
+
+    # market_outlook validation
+    outlook = result.get("market_outlook", "")
+    if outlook and not isinstance(outlook, str):
+        issues.append("market_outlook is not a string")
+
+    return (len(issues) == 0, issues)
+
+
 def check_grounding(summary: str, state: Dict[str, Any]) -> float:
     """Simple grounding check — verify summary references state data.
 
