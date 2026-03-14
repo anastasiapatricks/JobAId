@@ -181,6 +181,23 @@ def skill_triage(state: Dict[str, Any]) -> Dict[str, Any]:
     candidate_skills = _get_candidate_skills(state)
     candidate_lower = {s.lower().strip() for s in candidate_skills if s}
 
+    # Also extract known skills from resume text for broader matching
+    # (the parsed skills list may only have tool names like "IDA Pro"
+    #  but not domain terms like "malware analysis" or "incident response")
+    latest = get_latest_results(state)
+    resume_info = latest.get("resume_info") or state.get("resume_info") or {}
+    resume_text_parts = [
+        resume_info.get("professional_summary", ""),
+        " ".join(t.get("description", "") for t in resume_info.get("experience", []) if isinstance(t, dict)),
+    ]
+    resume_text = " ".join(resume_text_parts).lower()
+    try:
+        from tools.job_board_api import _extract_keywords_from_text
+        resume_extracted = set(_extract_keywords_from_text(resume_text))
+        candidate_lower = candidate_lower | resume_extracted
+    except ImportError:
+        pass
+
     latest = get_latest_results(state)
     scored_jobs = latest.get("scored_jobs") or state.get("scored_jobs") or []
 

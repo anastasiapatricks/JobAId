@@ -13,23 +13,34 @@ from utils import debug
 _api_logger = logging.getLogger("jobaid.external")
 
 
-# Common technical skills/tools to extract from job descriptions
+# Common technical skills/tools to extract from job descriptions.
+# Only include terms >= 2 chars that won't false-positive on common English words.
 _KNOWN_SKILLS = {
+    # Languages
     "python", "java", "javascript", "typescript", "c++", "c#", "go", "golang", "rust",
-    "ruby", "php", "swift", "kotlin", "scala", "r", "sql", "bash", "powershell",
+    "ruby", "php", "swift", "kotlin", "scala", "sql", "bash", "powershell",
+    # Infra & cloud
     "docker", "kubernetes", "aws", "azure", "gcp", "terraform", "ansible", "jenkins",
-    "git", "linux", "windows", "macos", "react", "angular", "vue", "node.js", "nodejs",
-    "django", "flask", "fastapi", "spring", "spring boot",
+    "git", "linux", "windows", "react", "angular", "vue", "node.js", "nodejs",
+    "django", "flask", "fastapi", "spring boot",
+    # AI/ML
     "machine learning", "deep learning", "nlp", "computer vision",
-    "ida pro", "ghidra", "x64dbg", "yara", "wireshark", "burp suite", "nmap",
-    "malware analysis", "reverse engineering", "incident response", "digital forensics",
-    "threat intelligence", "penetration testing", "vulnerability research",
-    "siem", "splunk", "elastic", "mitre att&ck", "osint",
+    # Security tools
+    "ida pro", "ghidra", "x64dbg", "windbg", "binary ninja", "yara",
+    "wireshark", "burp suite", "nmap", "volatility", "velociraptor",
+    "splunk", "elastic stack", "elk", "encase", "axiom", "fakenet",
+    # Security domains
+    "malware analysis", "malware", "reverse engineering", "incident response",
+    "digital forensics", "forensics", "threat intelligence", "threat hunting",
+    "penetration testing", "vulnerability research", "vulnerability assessment",
+    "siem", "mitre att&ck", "osint", "soc", "dfir", "red team", "blue team",
+    "cybersecurity", "network security", "cloud security", "application security",
+    "security operations", "security monitoring", "intrusion detection",
+    "log analysis", "network forensics", "memory forensics", "disk forensics",
+    # DevOps & data
     "ci/cd", "devops", "mlops", "agile", "scrum",
     "postgresql", "mysql", "mongodb", "redis", "elasticsearch",
     "spark", "airflow", "kafka", "hadoop",
-    "cybersecurity", "network security", "cloud security", "application security",
-    "soc", "dfir", "threat hunting", "red team", "blue team",
 }
 
 
