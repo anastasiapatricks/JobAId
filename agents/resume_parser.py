@@ -119,7 +119,14 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
 
     valid, issues = validate_resume_output(result)
     if not valid:
-        _guard_logger.warning(f"Resume output validation issues: {issues}")
+        from datetime import datetime, timezone
+        _guard_logger.warning(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "output_validation",
+            "agent": "resume_parser",
+            "issues": issues,
+        }))
 
     return result
 

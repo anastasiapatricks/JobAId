@@ -287,6 +287,13 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
 
     valid, issues = validate_job_discovery_output(result)
     if not valid:
-        _guard_logger.warning(f"Job discovery output validation issues: {issues}")
+        from datetime import datetime, timezone
+        _guard_logger.warning(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "output_validation",
+            "agent": "job_discovery",
+            "issues": issues,
+        }))
 
     return result
