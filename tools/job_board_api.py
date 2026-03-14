@@ -13,23 +13,33 @@ from utils import debug
 _api_logger = logging.getLogger("jobaid.external")
 
 
-# Common technical skills/tools to extract from job descriptions.
-# Only include terms >= 2 chars that won't false-positive on common English words.
+# Known skills/tools across industries for keyword extraction.
+# Rules: >= 3 chars, won't false-positive on common English words.
 _KNOWN_SKILLS = {
-    # Languages
+    # --- TECH: Programming Languages ---
     "python", "java", "javascript", "typescript", "c++", "c#", "golang", "rust",
     "ruby", "php", "swift", "kotlin", "scala", "sql", "bash", "powershell",
-    # Infra & cloud
-    "docker", "kubernetes", "aws", "azure", "gcp", "terraform", "ansible", "jenkins",
-    "git", "linux", "windows", "react", "angular", "vue", "node.js", "nodejs",
-    "django", "flask", "fastapi", "spring boot",
-    # AI/ML
+    "html", "css", "matlab", "vba", "perl", "lua", "dart", "solidity",
+    # --- TECH: Frameworks & Libraries ---
+    "react", "angular", "vue", "node.js", "nodejs", "django", "flask", "fastapi",
+    "spring boot", ".net", "express.js", "next.js", "flutter", "react native",
+    "tensorflow", "pytorch", "scikit-learn", "pandas", "numpy",
+    # --- TECH: Infrastructure & Cloud ---
+    "docker", "kubernetes", "aws", "azure", "gcp", "terraform", "ansible",
+    "jenkins", "git", "linux", "windows", "vmware", "openstack",
+    "ci/cd", "devops", "mlops", "microservices", "serverless", "api",
+    # --- TECH: Databases & Data ---
+    "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "oracle",
+    "sql server", "dynamodb", "cassandra", "neo4j", "snowflake", "bigquery",
+    "spark", "airflow", "kafka", "hadoop", "etl", "data pipeline",
+    "data warehouse", "data lake", "data modeling", "data governance",
+    # --- TECH: AI/ML ---
     "machine learning", "deep learning", "nlp", "computer vision",
-    # Security tools
+    "generative ai", "llm", "reinforcement learning", "neural network",
+    # --- CYBERSECURITY ---
     "ida pro", "ghidra", "x64dbg", "windbg", "binary ninja", "yara",
     "wireshark", "burp suite", "nmap", "volatility", "velociraptor",
-    "splunk", "elastic stack", "elk", "encase", "axiom", "fakenet",
-    # Security domains
+    "splunk", "elastic stack", "elk", "encase", "axiom",
     "malware analysis", "malware", "reverse engineering", "incident response",
     "digital forensics", "forensics", "threat intelligence", "threat hunting",
     "penetration testing", "vulnerability research", "vulnerability assessment",
@@ -37,10 +47,62 @@ _KNOWN_SKILLS = {
     "cybersecurity", "network security", "cloud security", "application security",
     "security operations", "security monitoring", "intrusion detection",
     "log analysis", "network forensics", "memory forensics", "disk forensics",
-    # DevOps & data
-    "ci/cd", "devops", "mlops", "agile", "scrum",
-    "postgresql", "mysql", "mongodb", "redis", "elasticsearch",
-    "spark", "airflow", "kafka", "hadoop",
+    "iso 27001", "nist", "gdpr", "pci dss", "zero trust",
+    # --- FINANCE & ACCOUNTING ---
+    "financial analysis", "financial modeling", "valuation", "risk management",
+    "portfolio management", "derivatives", "fixed income", "equities",
+    "accounting", "auditing", "bookkeeping", "tax", "gaap", "ifrs",
+    "bloomberg", "reuters", "excel", "financial reporting", "budgeting",
+    "forecasting", "credit analysis", "compliance", "aml", "kyc",
+    "investment banking", "private equity", "venture capital", "hedge fund",
+    "cfa", "acca", "cpa", "fmva",
+    # --- MARKETING & SALES ---
+    "digital marketing", "seo", "sem", "social media marketing", "content marketing",
+    "email marketing", "marketing automation", "google analytics", "google ads",
+    "facebook ads", "hubspot", "salesforce", "crm", "lead generation",
+    "brand management", "market research", "copywriting", "public relations",
+    "influencer marketing", "affiliate marketing", "a/b testing",
+    "account management", "business development", "negotiation",
+    "cold calling", "pipeline management", "sales strategy",
+    # --- DESIGN & CREATIVE ---
+    "figma", "adobe xd", "sketch", "photoshop", "illustrator", "indesign",
+    "after effects", "premiere pro", "blender", "autocad", "solidworks",
+    "ui design", "ux design", "ux research", "prototyping", "wireframing",
+    "graphic design", "motion graphics", "3d modeling", "typography",
+    # --- PROJECT MANAGEMENT & OPERATIONS ---
+    "agile", "scrum", "kanban", "waterfall", "lean", "six sigma",
+    "project management", "program management", "pmp", "prince2",
+    "jira", "confluence", "asana", "trello", "monday.com",
+    "stakeholder management", "change management", "risk assessment",
+    "process improvement", "supply chain", "logistics", "procurement",
+    "inventory management", "warehouse management", "vendor management",
+    # --- HR & PEOPLE ---
+    "recruitment", "talent acquisition", "onboarding", "performance management",
+    "compensation and benefits", "employee relations", "hris", "workday",
+    "succession planning", "learning and development", "org design",
+    # --- HEALTHCARE & LIFE SCIENCES ---
+    "clinical trials", "gmp", "gcp", "pharmacovigilance", "regulatory affairs",
+    "medical devices", "fda", "ema", "biostatistics", "epidemiology",
+    "electronic health records", "hl7", "fhir", "dicom",
+    # --- ENGINEERING (Non-software) ---
+    "mechanical engineering", "electrical engineering", "civil engineering",
+    "chemical engineering", "structural analysis", "finite element analysis",
+    "plc programming", "scada", "control systems", "hvac",
+    "cad", "cam", "cnc", "robotics", "automation",
+    # --- LEGAL & COMPLIANCE ---
+    "contract law", "corporate law", "intellectual property", "litigation",
+    "due diligence", "regulatory compliance", "legal research",
+    "anti-money laundering", "sanctions screening", "data privacy",
+    # --- COMMUNICATION & SOFT SKILLS ---
+    "leadership", "team management", "cross-functional collaboration",
+    "presentation skills", "public speaking", "technical writing",
+    "problem solving", "critical thinking", "strategic planning",
+    "client relationship", "stakeholder engagement",
+    # --- DATA & ANALYTICS ---
+    "data analysis", "data visualization", "business intelligence",
+    "tableau", "power bi", "looker", "qlik", "sas", "spss",
+    "statistical analysis", "hypothesis testing", "regression analysis",
+    "a/b testing", "predictive modeling",
 }
 
 
