@@ -17,7 +17,7 @@ _api_logger = logging.getLogger("jobaid.external")
 # Only include terms >= 2 chars that won't false-positive on common English words.
 _KNOWN_SKILLS = {
     # Languages
-    "python", "java", "javascript", "typescript", "c++", "c#", "go", "golang", "rust",
+    "python", "java", "javascript", "typescript", "c++", "c#", "golang", "rust",
     "ruby", "php", "swift", "kotlin", "scala", "sql", "bash", "powershell",
     # Infra & cloud
     "docker", "kubernetes", "aws", "azure", "gcp", "terraform", "ansible", "jenkins",
