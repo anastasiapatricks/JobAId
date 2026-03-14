@@ -308,7 +308,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
               if (skills.length > 0) {
                 greeting += ` I can see you have experience with ${skills.join(', ')}.`;
               }
-              greeting += '\n\nHere are some job searches based on your profile, or type your own:';
+              greeting += '\n\nHere are some job searches based on your profile, or type your own:\n\nYou can also ask me to:\n- Search for any job (e.g., "Find Python developer jobs in Singapore")\n- Write a cover letter (after finding jobs)\n- Summarize your session results';
 
               // Generate job search suggestions from resume data
               const suggestions = this.generateJobSuggestions(resumeInfo);
