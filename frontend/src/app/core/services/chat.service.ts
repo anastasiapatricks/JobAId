@@ -27,7 +27,17 @@ let messageIdCounter = 0;
 export class ChatService {
   readonly messages = signal<ChatMessage[]>([]);
   readonly isTyping = signal(false);
+  readonly currentStage = signal<string | null>(null);
+  readonly completedStages = signal<string[]>([]);
   readonly messageCount = computed(() => this.messages().length);
+
+  setCurrentStage(stage: string | null): void {
+    this.currentStage.set(stage);
+  }
+
+  setCompletedStages(stages: string[]): void {
+    this.completedStages.set(stages);
+  }
 
   addWelcome(): void {
     this.addMessage({
@@ -77,7 +87,7 @@ export class ChatService {
       timestamp: new Date(),
     };
 
-    // Ensure only the latest system message shows the checklist
+    // Ensure only the latest system message provides context for the sidebar
     // Inherit completedStages if not provided
     if (msg.sender === 'system') {
       if (!msg.completedStages) {
@@ -87,9 +97,9 @@ export class ChatService {
         }
       }
 
-      if (msg.completedStages) {
-        msg.showChecklist = true;
-        this.messages.update(msgs => msgs.map(m => ({ ...m, showChecklist: false })));
+      const stages = msg.completedStages || [];
+      if (stages.length > 0) {
+        this.completedStages.set(stages);
       }
     }
 
