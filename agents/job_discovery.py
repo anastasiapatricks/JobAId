@@ -233,6 +233,9 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
                     item["salary_max"] = matching_raw.get("salary_max")
                     item["created_at"] = matching_raw.get("created_at")
                     item["category"] = matching_raw.get("category")
+                    # Preserve keywords from raw source for skill triage
+                    if matching_raw.get("keywords"):
+                        item["keywords"] = matching_raw["keywords"]
                 
                 item.setdefault("url", "")
             debug(f"Job Discovery: recovered details for {len([i for i in scored if i.get('url')])} jobs")
