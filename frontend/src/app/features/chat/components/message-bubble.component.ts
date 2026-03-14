@@ -59,20 +59,6 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
             }
           </div>
         }
-
-        @if (message.sender === 'system' && message.type !== 'stageUpdate' && message.completedStages && message.showChecklist) {
-          <div class="next-steps-checklist">
-            <div class="checklist-header">Career Roadmap Status:</div>
-            <div class="checklist-items">
-              @for (stage of stages; track stage.stage) {
-                <div class="checklist-item" [class.completed]="isCompleted(stage.stage)">
-                  <mat-icon>{{ isCompleted(stage.stage) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
-                  <span>{{ stage.label }}</span>
-                </div>
-              }
-            </div>
-          </div>
-        }
       </div>
 
       @if (message.sender === 'user') {
@@ -168,47 +154,6 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       color: #c62828;
       mat-icon { flex-shrink: 0; }
       p { margin: 0; }
-    }
-    .next-steps-checklist {
-      margin-top: 12px;
-      padding: 12px;
-      background: var(--mat-sys-surface-container-low);
-      border-radius: 12px;
-      border: 1px solid var(--mat-sys-outline-variant);
-      width: 100%;
-    }
-    .checklist-header {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--mat-sys-on-surface-variant);
-      margin-bottom: 8px;
-    }
-    .checklist-items {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    .checklist-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.85rem;
-      color: var(--mat-sys-on-surface-variant);
-      opacity: 0.6;
-      
-      mat-icon {
-        font-size: 18px;
-        width: 18px;
-        height: 18px;
-      }
-      
-      &.completed {
-        opacity: 1;
-        color: var(--mat-sys-primary);
-        font-weight: 500;
-      }
     }
   `,
 })

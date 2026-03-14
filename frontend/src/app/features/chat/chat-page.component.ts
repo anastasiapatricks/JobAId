@@ -8,6 +8,7 @@ import { ApiService } from '../../core/services/api.service';
 import { MessageListComponent } from './components/message-list.component';
 import { ChatInputComponent } from './components/chat-input.component';
 import { ResumeUploadComponent } from '../resume/resume-upload.component';
+import { AgentSidebarComponent } from './components/agent-sidebar.component';
 
 type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 'results';
 
@@ -18,42 +19,47 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
     MessageListComponent,
     ChatInputComponent,
     ResumeUploadComponent,
+    AgentSidebarComponent,
     MatSnackBarModule,
     MatProgressBarModule
   ],
   template: `
-    <div class="chat-page">
-      <jobaid-message-list
-        [messages]="chat.messages()"
-        [isTyping]="chat.isTyping()"
-        [typingMessage]="typingMessage"
-      ></jobaid-message-list>
+    <div class="chat-layout">
+      <jobaid-agent-sidebar></jobaid-agent-sidebar>
+      
+      <div class="chat-page">
+        <jobaid-message-list
+          [messages]="chat.messages()"
+          [isTyping]="chat.isTyping()"
+          [typingMessage]="typingMessage"
+        ></jobaid-message-list>
 
-      @if (state === 'running') {
-        <div class="progress-section">
-          <div class="progress-info">
-            <span class="progress-label">{{ typingMessage }}</span>
-            <span class="progress-value">{{ pipelineProgress() }}%</span>
+        @if (state === 'running') {
+          <div class="progress-section">
+            <div class="progress-info">
+              <span class="progress-label">{{ typingMessage }}</span>
+              <span class="progress-value">{{ pipelineProgress() }}%</span>
+            </div>
+            <mat-progress-bar mode="determinate" [value]="pipelineProgress()"></mat-progress-bar>
           </div>
-          <mat-progress-bar mode="determinate" [value]="pipelineProgress()"></mat-progress-bar>
-        </div>
-      }
+        }
 
-      @if (state === 'awaiting_resume') {
-        <div class="upload-section">
-          <jobaid-resume-upload
-            (fileUploaded)="onFileUploaded($event)"
-            (textPasted)="onResumePasted($event)"
-          ></jobaid-resume-upload>
-        </div>
-      }
+        @if (state === 'awaiting_resume') {
+          <div class="upload-section">
+            <jobaid-resume-upload
+              (fileUploaded)="onFileUploaded($event)"
+              (textPasted)="onResumePasted($event)"
+            ></jobaid-resume-upload>
+          </div>
+        }
 
-      @if (state !== 'awaiting_resume') {
-        <jobaid-chat-input
-          (messageSent)="onMessageSent($event)"
-          (fileSelected)="onFileUploaded($event)"
-        ></jobaid-chat-input>
-      }
+        @if (state !== 'awaiting_resume') {
+          <jobaid-chat-input
+            (messageSent)="onMessageSent($event)"
+            (fileSelected)="onFileUploaded($event)"
+          ></jobaid-chat-input>
+        }
+      </div>
     </div>
   `,
   styles: `
@@ -61,6 +67,13 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
       display: flex;
       flex-direction: column;
       flex: 1;
+      overflow: hidden;
+    }
+    .chat-layout {
+      display: flex;
+      flex-direction: row;
+      flex: 1;
+      height: 100%;
       overflow: hidden;
     }
     .chat-page {
@@ -71,6 +84,7 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
       max-width: 900px;
       margin: 0 auto;
       width: 100%;
+      position: relative;
     }
     .progress-section {
       padding: 12px 16px;
@@ -95,7 +109,7 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
       padding: 0 16px 8px;
       flex-shrink: 0;
     }
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
       .chat-page {
         max-width: 100%;
       }
@@ -201,6 +215,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         },
         {
           onStageChange: (status) => {
+            this.chat.setCurrentStage(status.current_stage);
             switch (status.current_stage) {
               case 'parsing':
                 this.typingMessage = 'Parsing resume...';
@@ -228,6 +243,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
             }
           },
           onAwaitingInput: (results) => {
+            this.chat.setCurrentStage(null);
             this.chat.setTyping(false);
             this.state = 'awaiting_input';
             this.session.updateStatus('awaiting_input');
@@ -308,6 +324,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
           // If an agent is running, typing indicator stays on until poll completes
         },
         onAwaitingInput: (results) => {
+          this.chat.setCurrentStage(null);
           this.chat.setTyping(false);
           this.stopProgressTrickle();
           this.pipelineProgress.set(100);
@@ -318,6 +335,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
           this.state = 'awaiting_input';
         },
         onError: (error) => {
+          this.chat.setCurrentStage(null);
           this.chat.setTyping(false);
           this.stopProgressTrickle();
           this.chat.addError(`Error: ${error}`);
