@@ -431,12 +431,14 @@ uv run pytest tests/ -v
 uv run pytest tests/test_input_filter.py -v
 ```
 
-### Test Suite (92 tests)
+### Test Suite (188 tests)
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
-| `test_input_filter.py` | 19 | Prompt injection detection (all 7 patterns), input length limits, spotlight wrapping, adversarial inputs |
-| `test_output_filter.py` | 14 | Resume/job/pitch output validation, grounding score calculation |
+| `test_input_filter.py` | 47 | Prompt injection (7 patterns), input length limits, spotlight wrapping, adversarial inputs, **content safety (17 harmful blocked, 4 chat blocked, 7 legitimate pass)** |
+| `test_market_intelligence.py` | 55 | Output validation (14), JSON parsing (6), skill extraction (7), salary lookup (5), XAI explainability (6), hallucination guard (6), agent integration with mocked LLM (6), AI security (5) |
+| `test_skill_triage.py` | 14 | Skill matching, case insensitivity, edge cases, no-LLM verification, message format, top-N limiting, deduplication |
+| `test_output_filter.py` | 14 | Resume/job/pitch/market-intel output validation, grounding score |
 | `test_bounded_autonomy.py` | 14 | Iteration limits, per-stage retry limits, LLM call limits, reset |
 | `test_pii_sanitizer.py` | 14 | PII stripping (name, email, phone), gender indicator removal, text sanitization |
 | `test_health.py` | 5 | Health endpoint: status, version, uptime, system checks |
@@ -444,16 +446,105 @@ uv run pytest tests/test_input_filter.py -v
 
 ### AI Security Tests
 
-The `test_input_filter.py` file specifically tests prompt injection defense against all 7 detection patterns:
-- `ignore previous/above/prior instructions`
-- `you are now`
-- `system:` prefix
-- `<system>` tags
-- `ADMIN MODE`
-- `jailbreak`
-- `DAN mode`
+**Prompt injection defense** (`test_input_filter.py`) tests all 7 detection patterns:
+- `ignore previous/above/prior instructions`, `you are now`, `system:` prefix, `<system>` tags, `ADMIN MODE`, `jailbreak`, `DAN mode`
+- Also tests adversarial bypass attempts (case variations, extra whitespace, mixed case)
+- Verifies legitimate technical resumes containing words like "system" or "admin" pass
 
-Also tests adversarial bypass attempts (case variations, extra whitespace, mixed case) and verifies that legitimate technical resumes containing words like "system" or "admin" pass validation.
+**Content safety** (`test_input_filter.py`) blocks harmful/illegal job requests:
+- Violence (hitman, robbery, kidnapping, terrorism, arson)
+- Crime (drug trafficking, human trafficking, extortion)
+- Fraud (money laundering, identity theft, pyramid schemes)
+- Exploitation (child exploitation, forced labour)
+- Illegal hacking (hack accounts, steal passwords)
+- Verified: legitimate security jobs (pentesting, forensics, IR) pass through
+
+**Market Intelligence security** (`test_market_intelligence.py`) tests prompt injection via job queries and verifies the agent degrades gracefully under adversarial conditions.
+
+## Feature-Agent Branch — Enhancements
+
+The `feature-agent` branch contains significant enhancements to the **Market Intelligence Agent** and overall UX, adding 2,800+ lines across 27 files. Below is a summary of what was added, the rationale, and how it was implemented.
+
+### 1. Market Intelligence Agent Hardening
+
+**Rationale:** The Market Intelligence agent had zero tests and no output validation — the only agent without guardrails. The project proposal committed to output validation, XAI, and testing.
+
+**What was added:**
+- **Output validation** (`validate_market_intel_output()` in `guardrails/output_filter.py`) — validates skill_gaps structure, importance values, salary min < max, and all output field types
+- **XAI explainability** (`_build_skill_gap_explanations()`) — for each skill gap, traces which job listings demand that skill and whether the candidate already has it. Provides human-readable explanations like *"'Kubernetes' is required by 2 of your top job matches but is not in your current profile."*
+- **Hallucination guard** (`_verify_sources()`) — cross-checks each recommended course against Tavily/ChromaDB source data. Flags courses that can't be traced back to source context with `source_verified: true/false` and a `grounding_score`
+- **Prompt versioning** — `MARKET_INTELLIGENCE_PROMPT_VERSION` logged with every LLM call for MLSecOps traceability and rollback capability
+- **55 unit/integration/security tests** covering every function in the agent
+
+### 2. Skill Triage — Instant Skill-Gap Snapshot
+
+**Rationale:** Users need immediate feedback after job discovery, not a generic "want market analysis?" The triage provides instant value without an LLM call.
+
+**What was added:**
+- **`skill_triage()` function** — pure Python, no LLM. Compares candidate skills (from parsed resume + extracted domain terms) against each job's keywords
+- **Auto-triggered** after job discovery completes in the pipeline
+- **Frontend integration** — matched skills (green chips) and missing skills (amber chips) displayed inline on each job card
+- **319-skill extraction vocabulary** covering tech, cybersecurity, finance, marketing, design, PM, HR, healthcare, engineering, legal, data analytics, and soft skills
+- **14 tests** verifying matching, case insensitivity, edge cases, and zero LLM dependency
+
+### 3. Conversational Context & Intent Routing
+
+**Rationale:** Users said "yes" to a suggestion and got "how can I help you?" — the orchestrator had no conversation memory.
+
+**What was added:**
+- Orchestrator now passes last 6 messages to the LLM intent router
+- `/step` endpoint persists user and assistant messages to session state
+- JSON format reminder prevents LLM drifting to plain text when history is included
+- Three-layer fix discovered through debugging: read history → write history → enforce JSON
+
+### 4. Content Safety Guardrails
+
+**Rationale:** Job search systems should block queries for illegal activities (hitman, drug trafficking, etc.) while allowing legitimate security roles.
+
+**What was added:**
+- 15 regex patterns covering violence, crime, fraud, exploitation, and illegal hacking
+- `validate_chat_message()` for conversational input (pre-LLM, saves API costs)
+- Integrated into `/step` endpoint before any LLM processing
+- 28 tests (17 harmful blocked, 4 chat blocked, 7 legitimate security jobs pass)
+
+### 5. Smart Job Discovery
+
+**Rationale:** Adzuna returns generic IT jobs for domain-specific queries. Scoring was too generous — sales roles scored 75% for IR candidates.
+
+**What was added:**
+- **Stricter scoring rubric** — core role match is 50% of score; wrong-function jobs (sales, DevOps, support) must score <30
+- **Augmented search** — also searches with candidate's domain context (from resume summary) to broaden Adzuna coverage
+- **Relevance-ranked mock fallback** — mock jobs sorted by keyword overlap instead of list position
+- **90-day date filter** — `max_days_old=90` on Adzuna API, sorted by date
+- **Keyword extraction from Adzuna descriptions** — 319-skill vocabulary applied to job descriptions since Adzuna returns no keywords
+- **5 cybersecurity mock jobs** added (malware analyst, threat intel, IR consultant, reverse engineer, security researcher)
+
+### 6. Auto-Run Market Intel When User Picks a Job
+
+**Rationale:** "Market analysis" as a separate step felt unnatural. Users don't want to explicitly ask for it.
+
+**What was added:**
+- When user expresses interest in a job (for cover letter), market intelligence auto-runs for that specific role first
+- Frontend merges market intel data (skill gaps, upskilling roadmap, salary, outlook) alongside the cover letter
+- Post-discovery message guides users to pick a job instead of asking about "market analysis"
+- Natural flow: Resume → Jobs + Triage → "I like the Google one" → Learning plan + salary + cover letter
+
+### 7. Sourced Seed Data (RAG & Salary)
+
+**Rationale:** The original seed data was generic and unsourced. For the report's data governance section, all data needs provenance.
+
+**What was added:**
+- **Salary data** — 60 entries across 41 roles, sourced from MOM 2024 Occupational Wages and Mavenside Singapore Salary Guide 2025. Each entry has a `source` field
+- **Course data** — 28 entries from SANS, NUS-ISS, OffSec, AWS, Coursera, SkillsFuture SCTP. 13 are SkillsFuture eligible
+- **Industry trends** — 18 entries sourced from IMDA, CSA, MOM, ISC2, ITEL, Reeracoen. Singapore-specific 2025/2026 data with statistics
+- **Experience-aware recommendations** — prompt instructs LLM to match course difficulty to candidate seniority (no "Cybersecurity Fundamentals" for a 5-year senior analyst)
+
+### 8. UX Improvements
+
+**What was added:**
+- **Job search suggestion buttons** — after resume parsing, 5 clickable suggestions generated from the candidate's experience and domain keywords
+- **Natural proactivity** — bot suggests next steps in benefit-focused language instead of technical feature names
+- **Experience-level fix** — 5+ years maps to "senior" salary tier (was 7+)
 
 ## CI/CD Pipeline
 
