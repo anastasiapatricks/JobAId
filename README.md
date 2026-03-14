@@ -463,88 +463,88 @@ uv run pytest tests/test_input_filter.py -v
 
 ## Feature-Agent Branch — Enhancements
 
-The `feature-agent` branch contains significant enhancements to the **Market Intelligence Agent** and overall UX, adding 2,800+ lines across 27 files. Below is a summary of what was added, the rationale, and how it was implemented.
+The `feature-agent` branch adds 2,800+ lines across 27 files, focusing on the Market Intelligence Agent and UX improvements. This section describes what was added and why.
 
 ### 1. Market Intelligence Agent Hardening
 
-**Rationale:** The Market Intelligence agent had zero tests and no output validation — the only agent without guardrails. The project proposal committed to output validation, XAI, and testing.
+The Market Intelligence agent originally had no tests or output validation—the only agent without guardrails. The project proposal required output validation, explainability, and test coverage.
 
 **What was added:**
-- **Output validation** (`validate_market_intel_output()` in `guardrails/output_filter.py`) — validates skill_gaps structure, importance values, salary min < max, and all output field types
-- **XAI explainability** (`_build_skill_gap_explanations()`) — for each skill gap, traces which job listings demand that skill and whether the candidate already has it. Provides human-readable explanations like *"'Kubernetes' is required by 2 of your top job matches but is not in your current profile."*
-- **Hallucination guard** (`_verify_sources()`) — cross-checks each recommended course against Tavily/ChromaDB source data. Flags courses that can't be traced back to source context with `source_verified: true/false` and a `grounding_score`
-- **Prompt versioning** — `MARKET_INTELLIGENCE_PROMPT_VERSION` logged with every LLM call for MLSecOps traceability and rollback capability
-- **55 unit/integration/security tests** covering every function in the agent
+- **Output validation** (`validate_market_intel_output()` in `guardrails/output_filter.py`) — checks skill_gaps structure, importance values, salary ranges, and field types
+- **Explainability** (`_build_skill_gap_explanations()`) — for each skill gap, traces which jobs require it and whether the candidate has it. Example: *"'Kubernetes' is required by 2 of your top job matches but is not in your current profile."*
+- **Hallucination guard** (`_verify_sources()`) — verifies course recommendations against Tavily and ChromaDB source data. Flags untraced courses with `source_verified: true/false` and a `grounding_score`
+- **Prompt versioning** — logs `MARKET_INTELLIGENCE_PROMPT_VERSION` with every call for traceability and rollback
+- **55 tests** covering validation, explainability, hallucination checks, and agent integration
 
 ### 2. Skill Triage — Instant Skill-Gap Snapshot
 
-**Rationale:** Users need immediate feedback after job discovery, not a generic "want market analysis?" The triage provides instant value without an LLM call.
+Users previously saw generic "want market analysis?" prompts after job search. This feature shows relevant skills immediately, without an LLM call.
 
 **What was added:**
-- **`skill_triage()` function** — pure Python, no LLM. Compares candidate skills (from parsed resume + extracted domain terms) against each job's keywords
-- **Auto-triggered** after job discovery completes in the pipeline
-- **Frontend integration** — matched skills (green chips) and missing skills (amber chips) displayed inline on each job card
-- **319-skill extraction vocabulary** covering tech, cybersecurity, finance, marketing, design, PM, HR, healthcare, engineering, legal, data analytics, and soft skills
-- **14 tests** verifying matching, case insensitivity, edge cases, and zero LLM dependency
+- **`skill_triage()` function** — Python comparison of candidate skills (from resume + extracted terms) against job keywords. No LLM needed
+- **Auto-triggered** after job discovery
+- **Frontend display** — matched skills as green chips, missing skills as amber, shown on each job card
+- **319-skill vocabulary** spanning tech, security, finance, marketing, design, PM, HR, healthcare, engineering, legal, and data roles
+- **14 tests** for matching, case handling, edge cases, and LLM independence
 
 ### 3. Conversational Context & Intent Routing
 
-**Rationale:** Users said "yes" to a suggestion and got "how can I help you?" — the orchestrator had no conversation memory.
+Previously, users answering "yes" to a suggestion would get "how can I help you?" The orchestrator had no conversation memory.
 
 **What was added:**
-- Orchestrator now passes last 6 messages to the LLM intent router
-- `/step` endpoint persists user and assistant messages to session state
-- JSON format reminder prevents LLM drifting to plain text when history is included
-- Three-layer fix discovered through debugging: read history → write history → enforce JSON
+- Orchestrator now includes the last 6 messages when routing user intent to agents
+- `/step` endpoint stores user and assistant messages in session state
+- JSON format reminder keeps LLM output structured (not plain text)
+- Debugging revealed three layers: read history → write history → enforce JSON
 
 ### 4. Content Safety Guardrails
 
-**Rationale:** Job search systems should block queries for illegal activities (hitman, drug trafficking, etc.) while allowing legitimate security roles.
+Job search should block illegal queries (hitman, drug trafficking) while permitting legitimate security work.
 
 **What was added:**
-- 15 regex patterns covering violence, crime, fraud, exploitation, and illegal hacking
-- `validate_chat_message()` for conversational input (pre-LLM, saves API costs)
-- Integrated into `/step` endpoint before any LLM processing
-- 28 tests (17 harmful blocked, 4 chat blocked, 7 legitimate security jobs pass)
+- 15 regex patterns for violence, crime, fraud, exploitation, and illegal hacking
+- `validate_chat_message()` runs before LLM processing (saves API costs)
+- Integrated into `/step` endpoint
+- Tests verify 17 harmful cases blocked, 4 chat cases blocked, 7 security job requests allowed
 
 ### 5. Smart Job Discovery
 
-**Rationale:** Adzuna returns generic IT jobs for domain-specific queries. Scoring was too generous — sales roles scored 75% for IR candidates.
+Adzuna returns generic results for specialized queries. Previous scoring was too lenient (sales roles scored 75% for incident response candidates).
 
 **What was added:**
-- **Stricter scoring rubric** — core role match is 50% of score; wrong-function jobs (sales, DevOps, support) must score <30
-- **Augmented search** — also searches with candidate's domain context (from resume summary) to broaden Adzuna coverage
-- **Relevance-ranked mock fallback** — mock jobs sorted by keyword overlap instead of list position
-- **90-day date filter** — `max_days_old=90` on Adzuna API, sorted by date
-- **Keyword extraction from Adzuna descriptions** — 319-skill vocabulary applied to job descriptions since Adzuna returns no keywords
-- **5 cybersecurity mock jobs** added (malware analyst, threat intel, IR consultant, reverse engineer, security researcher)
+- **Stricter scoring** — role match is 50% of final score; wrong-function jobs (sales, DevOps, support) score below 30
+- **Augmented search** — adds candidate domain context (from resume summary) to broaden Adzuna results
+- **Relevance-ranked fallback** — mock jobs sorted by keyword overlap instead of list order
+- **90-day date filter** — `max_days_old=90` on Adzuna API, results sorted by recency
+- **Keyword extraction** — applies 319-skill vocabulary to Adzuna descriptions (since they return no keywords)
+- **5 security mock jobs** (malware analyst, threat intel, IR consultant, reverse engineer, security researcher)
 
 ### 6. Auto-Run Market Intel When User Picks a Job
 
-**Rationale:** "Market analysis" as a separate step felt unnatural. Users don't want to explicitly ask for it.
+Users found "market analysis" as a separate step unnatural and wanted it included with job results.
 
 **What was added:**
-- When user expresses interest in a job (for cover letter), market intelligence auto-runs for that specific role first
-- Frontend merges market intel data (skill gaps, upskilling roadmap, salary, outlook) alongside the cover letter
-- Post-discovery message guides users to pick a job instead of asking about "market analysis"
-- Natural flow: Resume → Jobs + Triage → "I like the Google one" → Learning plan + salary + cover letter
+- Market intelligence auto-runs when user shows interest in a job (e.g., for a cover letter)
+- Frontend displays skill gaps, learning plan, salary, and outlook alongside the cover letter
+- Post-discovery guidance directs users to pick a job instead of asking about "market analysis"
+- Actual flow: Resume → Jobs + Triage → pick a job → Learning plan + salary + cover letter
 
 ### 7. Sourced Seed Data (RAG & Salary)
 
-**Rationale:** The original seed data was generic and unsourced. For the report's data governance section, all data needs provenance.
+Original seed data lacked sources. Documentation requires data provenance.
 
 **What was added:**
-- **Salary data** — 60 entries across 41 roles, sourced from MOM 2024 Occupational Wages and Mavenside Singapore Salary Guide 2025. Each entry has a `source` field
-- **Course data** — 28 entries from SANS, NUS-ISS, OffSec, AWS, Coursera, SkillsFuture SCTP. 13 are SkillsFuture eligible
-- **Industry trends** — 18 entries sourced from IMDA, CSA, MOM, ISC2, ITEL, Reeracoen. Singapore-specific 2025/2026 data with statistics
-- **Experience-aware recommendations** — prompt instructs LLM to match course difficulty to candidate seniority (no "Cybersecurity Fundamentals" for a 5-year senior analyst)
+- **Salary data** — 60 entries across 41 roles from MOM 2024 Occupational Wages and Mavenside Singapore Salary Guide 2025. Each entry has a `source` field
+- **Course data** — 28 entries from SANS, NUS-ISS, OffSec, AWS, Coursera, SkillsFuture SCTP. 13 qualify for SkillsFuture funding
+- **Industry trends** — 18 entries from IMDA, CSA, MOM, ISC2, ITEL, Reeracoen. Singapore-specific 2025/2026 data with citations
+- **Seniority-matched recommendations** — prompt tells LLM to match course level to candidate experience (no beginner courses for 5-year analysts)
 
 ### 8. UX Improvements
 
 **What was added:**
-- **Job search suggestion buttons** — after resume parsing, 5 clickable suggestions generated from the candidate's experience and domain keywords
-- **Natural proactivity** — bot suggests next steps in benefit-focused language instead of technical feature names
-- **Experience-level fix** — 5+ years maps to "senior" salary tier (was 7+)
+- **Search suggestion buttons** — after resume parsing, 5 clickable job search suggestions drawn from candidate background and domain
+- **Clear next steps** — bot guides users toward relevant actions instead of describing features
+- **Experience threshold fix** — 5+ years now maps to "senior" salary tier (previously 7+)
 
 ## CI/CD Pipeline
 
