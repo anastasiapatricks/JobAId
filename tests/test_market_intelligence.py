@@ -372,7 +372,7 @@ class TestLookupSalary:
         assert result["min_salary"] > 0
 
     def test_junior_experience(self):
-        result = _lookup_salary("software engineer", 1)
+        result = _lookup_salary("cybersecurity analyst", 1)
         assert result.get("experience_level") == "junior"
 
     def test_senior_experience(self):
