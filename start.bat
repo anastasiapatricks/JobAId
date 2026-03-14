@@ -127,7 +127,7 @@ if %errorlevel%==0 (
     if %errorlevel%==0 (
         uv sync
     ) else (
-        .venv\Scripts\pip install "langchain>=0.3.27,<0.4" "langchain-openai>=0.2.14,<0.3" "langgraph>=0.6.6,<0.7" chromadb fastapi pydantic-settings httpx tavily-python pypdf python-docx beautifulsoup4 python-multipart uvicorn
+        .venv\Scripts\pip install "langchain>=0.3.27,<0.4" "langchain-openai>=0.2.14,<0.3" "langgraph>=0.6.6,<0.7" chromadb fastapi pydantic-settings httpx tavily-python pypdf python-docx beautifulsoup4 python-multipart uvicorn pytest
     )
     echo   [OK] Dependencies installed
 )
@@ -146,6 +146,11 @@ if exist "frontend\node_modules" (
 
 REM --- 7. Run tests ---
 echo 7. Running tests (output saved to test_results.txt)
+.venv\Scripts\python -c "import pytest" >nul 2>&1
+if not %errorlevel%==0 (
+    echo   [WARN] pytest not installed — installing...
+    .venv\Scripts\pip install pytest >nul 2>&1
+)
 set PYTHONPATH=.
 .venv\Scripts\python -m pytest tests/ -v --tb=short > test_results.txt 2>&1
 type test_results.txt | findstr /C:"passed"
