@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ScoreColorPipe } from '../../../shared/pipes/score-color.pipe';
-import { ScoredJob } from '../../../core/models/results.model';
+import { ScoredJob, SkillTriageEntry } from '../../../core/models/results.model';
 
 @Component({
   selector: 'jobaid-job-card',
@@ -88,7 +88,36 @@ import { ScoredJob } from '../../../core/models/results.model';
             }
           </div>
 
-          @if (job.keywords?.length) {
+          @if (triage) {
+            <div class="skill-triage-inline">
+              @if (triage.skills_matched.length) {
+                <div class="triage-group">
+                  <span class="triage-label matched-label">
+                    <mat-icon>check_circle</mat-icon> Your skills:
+                  </span>
+                  <mat-chip-set>
+                    @for (skill of triage.skills_matched; track skill) {
+                      <mat-chip class="chip-matched">{{ skill }}</mat-chip>
+                    }
+                  </mat-chip-set>
+                </div>
+              }
+              @if (triage.skills_missing.length) {
+                <div class="triage-group">
+                  <span class="triage-label missing-label">
+                    <mat-icon>add_circle_outline</mat-icon> To learn:
+                  </span>
+                  <mat-chip-set>
+                    @for (skill of triage.skills_missing; track skill) {
+                      <mat-chip class="chip-missing">{{ skill }}</mat-chip>
+                    }
+                  </mat-chip-set>
+                </div>
+              }
+            </div>
+          }
+
+          @if (job.keywords?.length && !triage) {
             <div class="keywords">
               <mat-chip-set>
                 @for (keyword of job.keywords!.slice(0, 5); track keyword) {
@@ -286,6 +315,43 @@ import { ScoredJob } from '../../../core/models/results.model';
       background: var(--mat-sys-secondary-container) !important;
       color: var(--mat-sys-on-secondary-container) !important;
     }
+    .skill-triage-inline {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.02);
+      border: 1px solid var(--mat-sys-outline-variant);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .triage-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .triage-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      min-width: 100px;
+      mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    }
+    .matched-label { color: #2e7d32; }
+    .missing-label { color: #e65100; }
+    .chip-matched {
+      --mat-chip-container-height: 26px;
+      --mdc-chip-elevated-container-color: #c8e6c9;
+      font-size: 0.75rem;
+    }
+    .chip-missing {
+      --mat-chip-container-height: 26px;
+      --mdc-chip-elevated-container-color: #ffe0b2;
+      font-size: 0.75rem;
+    }
     mat-card-actions {
       padding: 12px 0 4px;
     }
@@ -293,6 +359,7 @@ import { ScoredJob } from '../../../core/models/results.model';
 })
 export class JobCardComponent {
   @Input({ required: true }) job!: ScoredJob;
+  @Input() triage: SkillTriageEntry | null = null;
 
   openJob(event: MouseEvent): void {
     if (this.job.url) {

@@ -6,7 +6,6 @@ import { SkillGapsComponent } from './components/skill-gaps.component';
 import { UpskillingRoadmapComponent } from './components/upskilling-roadmap.component';
 import { SalaryInsightsComponent } from './components/salary-insights.component';
 import { CoverLetterComponent } from './components/cover-letter.component';
-import { SkillTriageComponent } from './components/skill-triage.component';
 @Component({
   selector: 'jobaid-results-container',
   standalone: true,
@@ -17,7 +16,6 @@ import { SkillTriageComponent } from './components/skill-triage.component';
     UpskillingRoadmapComponent,
     SalaryInsightsComponent,
     CoverLetterComponent,
-    SkillTriageComponent,
   ],
   template: `
     @if (entry) {
@@ -27,11 +25,7 @@ import { SkillTriageComponent } from './components/skill-triage.component';
         }
 
         @if (show('scored_jobs') && entry.scored_jobs?.length) {
-          <jobaid-job-list [jobs]="entry.scored_jobs!"></jobaid-job-list>
-        }
-
-        @if (show('skill_triage') && entry.skill_triage?.length) {
-          <jobaid-skill-triage [triage]="entry.skill_triage!"></jobaid-skill-triage>
+          <jobaid-job-list [jobs]="entry.scored_jobs!" [triage]="entry.skill_triage ?? []"></jobaid-job-list>
         }
 
         @if (show('skill_gaps') && entry.skill_gaps?.length) {
@@ -72,7 +66,7 @@ export class ResultsContainerComponent implements OnChanges {
   entry: ResultEntry | null = null;
 
   private static ACTION_SECTIONS: Record<string, string[]> = {
-    discovery: ['scored_jobs', 'skill_triage'],
+    discovery: ['scored_jobs'],
     market_intel: ['skill_gaps', 'upskilling_roadmap', 'salary_insights', 'market_outlook', 'industry_trends'],
     pitching: ['final_pitch'],
     summarizing: ['summary'],
