@@ -16,6 +16,7 @@ from models.api_models import (
 )
 from api.dependencies import get_session, update_session, get_graph
 from agents.orchestrator import reset_autonomy, interpret_user_intent
+from guardrails.input_filter import validate_chat_message
 from utils import get_latest_results
 from graph.nodes import (
     resume_parser_node,
@@ -213,6 +214,17 @@ async def step(session_id: str, req: StepRequest):
         raise HTTPException(status_code=409, detail="An agent is already running")
 
     state = session.get("state") or session.get("result") or {}
+
+    # Content safety check before any processing
+    safe, safety_msg = validate_chat_message(req.message)
+    if not safe:
+        return StepResponse(
+            session_id=session_id,
+            status="awaiting_input",
+            response_text=safety_msg,
+            action="chitchat",
+            completed_stages=_get_completed_stages(state)
+        )
 
     # Persist user message to state so the router has conversation history
     msgs = list(state.get("messages") or [])
