@@ -80,6 +80,27 @@ def _now_iso() -> str:
 def _run_single_step(session_id: str, action: str, state: dict):
     """Run a single agent node in a background thread, then set status back to awaiting_input."""
     try:
+        # When user picks a job for cover letter, auto-run market intel first
+        # so they get learning plan + salary + demand alongside the pitch
+        completed_so_far = {r.get("action") for r in state.get("results", [])}
+        if action == "pitching" and "market_intel" not in completed_so_far:
+            selected = state.get("_selected_job") or {}
+            job_title = selected.get("title", state.get("job_query", ""))
+            if job_title:
+                state["job_query"] = job_title
+                state["current_stage"] = "market_intel"
+                update_session(session_id, status="running", state=state)
+                mi_node = _ACTION_NODES["market_intel"]
+                mi_result = mi_node(state)
+                # Append market intel result
+                results_arr = list(state.get("results", []))
+                mi_entry = {"action": "market_intel", "timestamp": _now_iso()}
+                for k, v in mi_result.items():
+                    if k != "messages":
+                        mi_entry[k] = v
+                results_arr.append(mi_entry)
+                state["results"] = results_arr
+
         node_fn = _ACTION_NODES.get(action)
         if not node_fn:
             update_session(session_id, status="awaiting_input")
@@ -113,27 +134,29 @@ def _run_single_step(session_id: str, action: str, state: dict):
                 results_arr[-1] = entry
                 state["results"] = results_arr
 
-                if "market_intel" not in completed_actions:
-                    # Summarize triage and suggest deep dive
-                    triage = triage_result.get("skill_triage", [])
-                    if triage:
-                        top = triage[0]
-                        missing = ", ".join(top.get("skills_missing", [])[:3]) or "none"
-                        suggestion = (
-                            f"I found {n_jobs} job matches and ran a quick skill comparison. "
-                            f"Your top match ({top['title']} at {top['company']}) needs: {missing}. "
-                            "Want me to do a deeper analysis with upskilling courses and salary insights?"
-                        )
-                    else:
-                        suggestion = (
-                            f"I found {n_jobs} job matches! Want me to analyze what skills "
-                            "are most in-demand and show you salary insights?"
-                        )
-                    msgs.append({"role": "assistant", "content": suggestion})
-        elif action == "market_intel" and "pitching" not in completed_actions:
+                # Suggest picking a job — market intel runs automatically when they do
+                triage = triage_result.get("skill_triage", [])
+                if triage:
+                    top = triage[0]
+                    missing_list = top.get("skills_missing", [])[:3]
+                    missing = ", ".join(missing_list) if missing_list else "none identified"
+                    suggestion = (
+                        f"I found {n_jobs} job matches and compared your skills against each role. "
+                        f"Your top match is **{top['title']}** at **{top['company']}**"
+                        f"{f' (gaps: {missing})' if missing_list else ''}. "
+                        "Which role interests you? I'll show you a learning plan, "
+                        "salary insights, and draft a cover letter for it."
+                    )
+                else:
+                    suggestion = (
+                        f"I found {n_jobs} job matches! Which one interests you? "
+                        "I'll prepare everything you need to apply."
+                    )
+                msgs.append({"role": "assistant", "content": suggestion})
+        elif action == "pitching":
             msgs.append({"role": "assistant", "content": (
-                "Market analysis complete! Want me to draft a tailored cover letter "
-                "for one of your top job matches?"
+                "Your cover letter is ready! You can also ask me to search for "
+                "more jobs, pick another role, or get a session summary."
             )})
         state["messages"] = msgs
 
@@ -268,6 +291,13 @@ async def step(session_id: str, req: StepRequest):
                 scored_jobs.insert(0, target_job)
         # Store reordered scored_jobs at top level so the agent can read it
         state["scored_jobs"] = scored_jobs
+
+        # Auto-set job_query for market intel based on selected job
+        if scored_jobs:
+            target = scored_jobs[0]
+            state["_selected_job"] = target
+            if not state.get("job_query") or state["job_query"] == "":
+                state["job_query"] = target.get("title", "")
 
     # Set running and launch agent in background thread
     state["last_action"] = action
