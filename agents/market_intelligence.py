@@ -170,8 +170,62 @@ def _verify_sources(
     return upskilling_roadmap
 
 
+def skill_triage(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Quick skill-gap triage — pure Python, no LLM calls.
+
+    Compares candidate skills against each scored job's keywords to produce
+    a fast "skills you have vs skills you need" snapshot. Runs automatically
+    after job discovery to give users an instant overview before they decide
+    whether to request a full deep-dive market analysis.
+    """
+    candidate_skills = _get_candidate_skills(state)
+    candidate_lower = {s.lower().strip() for s in candidate_skills if s}
+
+    latest = get_latest_results(state)
+    scored_jobs = latest.get("scored_jobs") or state.get("scored_jobs") or []
+
+    triage_results = []
+    for job in scored_jobs[:10]:
+        job_keywords = job.get("keywords", [])
+        keywords_lower = {kw.lower().strip() for kw in job_keywords if kw}
+
+        matched = sorted(candidate_lower & keywords_lower)
+        missing = sorted(keywords_lower - candidate_lower)
+        total = len(keywords_lower)
+        ratio = len(matched) / max(total, 1)
+
+        triage_results.append({
+            "title": job.get("title", "Unknown"),
+            "company": job.get("company", "Unknown"),
+            "score": job.get("score", 0),
+            "skills_matched": matched,
+            "skills_missing": missing,
+            "match_ratio": round(ratio, 2),
+        })
+
+    # Build summary message
+    if triage_results:
+        top = triage_results[0]
+        n_matched = len(top["skills_matched"])
+        n_total = n_matched + len(top["skills_missing"])
+        missing_text = ", ".join(top["skills_missing"][:4]) or "none"
+        msg = (
+            f"[Skill Triage] Quick scan of {len(triage_results)} jobs: "
+            f"your top match is {top['title']} at {top['company']} "
+            f"({n_matched}/{n_total} skills). "
+            f"Key gaps: {missing_text}."
+        )
+    else:
+        msg = "[Skill Triage] No scored jobs to analyze."
+
+    return {
+        "skill_triage": triage_results,
+        "messages": [{"role": "assistant", "content": msg}],
+    }
+
+
 def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Analyze market intelligence: skill gaps, upskilling, salary, trends."""
+    """Deep-dive market analysis: skill gaps, upskilling, salary, trends via RAG."""
     candidate_skills = _get_candidate_skills(state)
     job_requirements = _get_top_job_requirements(state)
     job_query = state.get("job_query", "")

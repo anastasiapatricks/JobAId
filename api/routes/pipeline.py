@@ -101,15 +101,34 @@ def _run_single_step(session_id: str, action: str, state: dict):
         # After agent completes, add a follow-up suggestion to conversation
         msgs = list(state.get("messages") or [])
         completed_actions = {r.get("action") for r in results_arr}
-        if action == "discovery" and "market_intel" not in completed_actions:
+        if action == "discovery":
             n_jobs = len(entry.get("scored_jobs", []))
             if n_jobs > 0:
-                suggestion = (
-                    f"I found {n_jobs} job matches! I can also analyze what skills are "
-                    "most in-demand for these roles, show you where you could upskill, "
-                    "and what salary to expect. Want me to run that analysis?"
-                )
-                msgs.append({"role": "assistant", "content": suggestion})
+                # Auto-run lightweight skill triage (no LLM, instant)
+                from agents.market_intelligence import skill_triage
+                triage_result = skill_triage(state)
+                entry["skill_triage"] = triage_result.get("skill_triage", [])
+                # Update the entry in results_arr (it's the last one appended)
+                results_arr[-1] = entry
+                state["results"] = results_arr
+
+                if "market_intel" not in completed_actions:
+                    # Summarize triage and suggest deep dive
+                    triage = triage_result.get("skill_triage", [])
+                    if triage:
+                        top = triage[0]
+                        missing = ", ".join(top.get("skills_missing", [])[:3]) or "none"
+                        suggestion = (
+                            f"I found {n_jobs} job matches and ran a quick skill comparison. "
+                            f"Your top match ({top['title']} at {top['company']}) needs: {missing}. "
+                            "Want me to do a deeper analysis with upskilling courses and salary insights?"
+                        )
+                    else:
+                        suggestion = (
+                            f"I found {n_jobs} job matches! Want me to analyze what skills "
+                            "are most in-demand and show you salary insights?"
+                        )
+                    msgs.append({"role": "assistant", "content": suggestion})
         elif action == "market_intel" and "pitching" not in completed_actions:
             msgs.append({"role": "assistant", "content": (
                 "Market analysis complete! Want me to draft a tailored cover letter "

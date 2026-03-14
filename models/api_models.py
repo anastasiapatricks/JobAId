@@ -38,6 +38,7 @@ class ResultEntry(BaseModel):
     action: str
     timestamp: str
     scored_jobs: Optional[List[Dict[str, Any]]] = None
+    skill_triage: Optional[List[Dict[str, Any]]] = None
     matching_explanation: Optional[List[str]] = None
     job_listings: Optional[List[Dict[str, Any]]] = None
     skill_gaps: Optional[List[Dict[str, Any]]] = None
