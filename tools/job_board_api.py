@@ -13,14 +13,47 @@ from utils import debug
 _api_logger = logging.getLogger("jobaid.external")
 
 
+# Common technical skills/tools to extract from job descriptions
+_KNOWN_SKILLS = {
+    "python", "java", "javascript", "typescript", "c++", "c#", "go", "golang", "rust",
+    "ruby", "php", "swift", "kotlin", "scala", "r", "sql", "bash", "powershell",
+    "docker", "kubernetes", "aws", "azure", "gcp", "terraform", "ansible", "jenkins",
+    "git", "linux", "windows", "macos", "react", "angular", "vue", "node.js", "nodejs",
+    "django", "flask", "fastapi", "spring", "spring boot",
+    "machine learning", "deep learning", "nlp", "computer vision",
+    "ida pro", "ghidra", "x64dbg", "yara", "wireshark", "burp suite", "nmap",
+    "malware analysis", "reverse engineering", "incident response", "digital forensics",
+    "threat intelligence", "penetration testing", "vulnerability research",
+    "siem", "splunk", "elastic", "mitre att&ck", "osint",
+    "ci/cd", "devops", "mlops", "agile", "scrum",
+    "postgresql", "mysql", "mongodb", "redis", "elasticsearch",
+    "spark", "airflow", "kafka", "hadoop",
+    "cybersecurity", "network security", "cloud security", "application security",
+    "soc", "dfir", "threat hunting", "red team", "blue team",
+}
+
+
+def _extract_keywords_from_text(text: str) -> List[str]:
+    """Extract known technical skills/tools from job description text."""
+    text_lower = text.lower()
+    found = []
+    for skill in _KNOWN_SKILLS:
+        if skill in text_lower:
+            found.append(skill)
+    return sorted(found)
+
+
 def _normalize_adzuna_job(raw: dict) -> Dict[str, Any]:
     """Convert Adzuna API response to internal JobListing format."""
+    desc = raw.get("description", "")
+    title = raw.get("title", "")
+    keywords = _extract_keywords_from_text(f"{title} {desc}")
     return {
-        "title": raw.get("title", ""),
+        "title": title,
         "company": raw.get("company", {}).get("display_name", "Unknown"),
         "location": raw.get("location", {}).get("display_name", ""),
-        "description": raw.get("description", ""),
-        "keywords": [],  # Adzuna doesn't provide keywords; extracted downstream
+        "description": desc,
+        "keywords": keywords,
         "salary_min": raw.get("salary_min"),
         "salary_max": raw.get("salary_max"),
         "url": raw.get("redirect_url", ""),
@@ -55,6 +88,8 @@ def _search_adzuna_once(query: str, location: str, num_results: int) -> List[Dic
         "app_key": settings.adzuna_api_key,
         "what": query,
         "results_per_page": num_results,
+        "max_days_old": 90,
+        "sort_by": "date",
         "content-type": "application/json",
     }
     if location:
