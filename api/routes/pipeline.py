@@ -97,6 +97,26 @@ def _run_single_step(session_id: str, action: str, state: dict):
                 entry[k] = v
         results_arr.append(entry)
         state["results"] = results_arr
+
+        # After agent completes, add a follow-up suggestion to conversation
+        msgs = list(state.get("messages") or [])
+        completed_actions = {r.get("action") for r in results_arr}
+        if action == "discovery" and "market_intel" not in completed_actions:
+            n_jobs = len(entry.get("scored_jobs", []))
+            if n_jobs > 0:
+                suggestion = (
+                    f"I found {n_jobs} job matches! I can also analyze what skills are "
+                    "most in-demand for these roles, show you where you could upskill, "
+                    "and what salary to expect. Want me to run that analysis?"
+                )
+                msgs.append({"role": "assistant", "content": suggestion})
+        elif action == "market_intel" and "pitching" not in completed_actions:
+            msgs.append({"role": "assistant", "content": (
+                "Market analysis complete! Want me to draft a tailored cover letter "
+                "for one of your top job matches?"
+            )})
+        state["messages"] = msgs
+
         update_session(session_id, status="awaiting_input", state=state, result=state)
     except Exception as exc:
         errors = list(state.get("errors") or [])

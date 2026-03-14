@@ -131,18 +131,29 @@ def search_jobs(query: str, location: str = "", num_results: int = 10) -> List[D
     if jobs:
         return jobs
 
-    # Fallback to MOCK_JOBS
+    # Fallback to MOCK_JOBS — score by keyword overlap, not position
     debug("Job search: falling back to MOCK_JOBS")
-    query_terms = query.lower().split()
+    query_terms = [t for t in query.lower().split() if t not in _STOP_WORDS]
 
-    def matches(job: Dict[str, Any]) -> bool:
+    def relevance_score(job: Dict[str, Any]) -> int:
         hay = " ".join([job["title"].lower()] + job.get("keywords", []))
         if not query_terms:
-            return True
-        return any(q in hay for q in query_terms)
+            return 1
+        return sum(1 for q in query_terms if q in hay)
 
-    matched = [
-        {**j, "source": "mock", "description": f"Mock job listing for {j['title']} at {j['company']}", "salary_min": None, "salary_max": None, "url": ""}
-        for j in MOCK_JOBS if matches(j)
-    ]
-    return matched[:num_results]
+    scored = []
+    for j in MOCK_JOBS:
+        score = relevance_score(j)
+        if score > 0:
+            scored.append((score, {
+                **j,
+                "source": "mock",
+                "description": f"Mock job listing for {j['title']} at {j['company']}",
+                "salary_min": None,
+                "salary_max": None,
+                "url": "",
+            }))
+
+    # Sort by relevance score descending so best matches come first
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [job for _, job in scored[:num_results]]
