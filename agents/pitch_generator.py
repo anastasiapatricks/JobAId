@@ -114,10 +114,17 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     debug("Pitch Generator: Step 1 — company research")
     company_info = ""
     if company:
-        company_info = search_company(company)
+        try:
+            company_info = search_company(company)
+        except Exception as exc:
+            debug(f"Pitch Generator: Tavily company search error: {exc}")
         if not company_info:
             debug("Pitch Generator: Tavily company search empty, falling back to Wikipedia")
-            company_info = get_company_summary(company)
+            try:
+                company_info = get_company_summary(company)
+            except Exception as exc:
+                debug(f"Pitch Generator: Wikipedia error: {exc}")
+                company_info = f"{company} is a technology company."
 
     job_context = (
         f"Company: {company}\n"
