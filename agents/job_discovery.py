@@ -129,9 +129,29 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
     latest = get_latest_results(state)
     resume_info = latest.get("resume_debiased") or state.get("resume_debiased") or latest.get("resume_info") or state.get("resume_info") or {}
 
-    # Step 1: Search for jobs
+    # Step 1: Search for jobs — use multiple query variations for broader coverage
     debug(f"Job Discovery: searching for '{job_query}'")
-    raw_jobs = search_jobs(job_query, location)
+    raw_jobs = search_jobs(job_query, location, num_results=15)
+
+    # Also search with domain context from the resume to catch relevant
+    # jobs that Adzuna misses with the literal query alone
+    summary_text = (resume_info.get("professional_summary") or "").lower()
+    domain_terms = []
+    for term in ["cybersecurity", "security", "data science", "software engineering",
+                  "finance", "marketing", "healthcare"]:
+        if term in summary_text and term not in job_query.lower():
+            domain_terms.append(term)
+    if domain_terms:
+        augmented_query = f"{job_query} {domain_terms[0]}"
+        debug(f"Job Discovery: augmented search '{augmented_query}'")
+        extra_jobs = search_jobs(augmented_query, location, num_results=10)
+        # Deduplicate by title + company
+        seen = {(j.get("title", "").lower(), j.get("company", "").lower()) for j in raw_jobs}
+        for j in extra_jobs:
+            key = (j.get("title", "").lower(), j.get("company", "").lower())
+            if key not in seen:
+                raw_jobs.append(j)
+                seen.add(key)
 
     if not raw_jobs:
         return {
