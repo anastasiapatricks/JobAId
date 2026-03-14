@@ -145,13 +145,18 @@ if exist "frontend\node_modules" (
 )
 
 REM --- 7. Run tests ---
-echo 7. Running tests
+echo 7. Running tests (output saved to test_results.txt)
 set PYTHONPATH=.
-.venv\Scripts\python -m pytest tests/ -q --tb=line 2>&1 | findstr /C:"passed"
+.venv\Scripts\python -m pytest tests/ -v --tb=short > test_results.txt 2>&1
+type test_results.txt | findstr /C:"passed"
 if %errorlevel%==0 (
-    echo   [OK] Tests passed
+    echo   [OK] Tests passed — see test_results.txt for details
 ) else (
-    echo   [FAIL] Some tests failed — check output above
+    echo   [FAIL] Some tests failed — check test_results.txt
+    echo.
+    echo   Failed tests:
+    type test_results.txt | findstr /C:"FAILED"
+    echo.
     set /a ERRORS+=1
 )
 
