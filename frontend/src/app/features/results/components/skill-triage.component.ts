@@ -1,4 +1,5 @@
 import { Component, Input } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -7,7 +8,7 @@ import { SkillTriageEntry } from '../../../core/models/results.model';
 @Component({
   selector: 'jobaid-skill-triage',
   standalone: true,
-  imports: [MatChipsModule, MatIconModule, MatProgressBarModule],
+  imports: [DecimalPipe, MatChipsModule, MatIconModule, MatProgressBarModule],
   template: `
     <div class="section-header">
       <mat-icon>compare_arrows</mat-icon>
