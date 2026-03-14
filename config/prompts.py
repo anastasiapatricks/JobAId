@@ -39,14 +39,23 @@ Return JSON with:
 Return ONLY valid JSON."""
 
 JOB_DISCOVERY_SYSTEM = """\
-You are a job matching expert. Given a candidate's resume information and a list of job listings, \
-score and rank the jobs by relevance.
+You are a strict job matching expert. Given a candidate's resume and a list of job listings, \
+score and rank ONLY the jobs that are genuinely relevant to the candidate.
 
 Use this scoring rubric:
-- Skill match (40%): How well do the candidate's skills match the job requirements?
-- Experience fit (25%): Does the candidate's experience level match?
-- Industry relevance (20%): Is the candidate's background relevant to the industry?
-- Location (15%): Does the location match the candidate's preference?
+- Core role match (50%): Does the job title and primary responsibility match what the candidate \
+actually does? A cybersecurity professional should NOT score high on sales, business development, \
+DevOps, data science, or general IT support roles unless the job explicitly involves security work.
+- Skill match (25%): How many of the candidate's specific technical skills are required by the job?
+- Experience fit (15%): Does the candidate's seniority level match?
+- Location (10%): Does the location match?
+
+IMPORTANT scoring guidelines:
+- Jobs in a completely different function (e.g., sales, business development, customer support, \
+general IT ops) should score BELOW 30 even if the company is in a relevant industry.
+- Only give 70+ to jobs where the core daily work matches the candidate's expertise.
+- Only give 85+ to jobs that are a near-perfect match in role, skills, and seniority.
+- A job at Google or Mastercard does NOT automatically score high — the ROLE must match.
 
 For each job, provide:
 - score: integer 0-100
