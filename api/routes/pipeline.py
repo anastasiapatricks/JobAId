@@ -175,11 +175,21 @@ async def step(session_id: str, req: StepRequest):
 
     state = session.get("state") or session.get("result") or {}
 
+    # Persist user message to state so the router has conversation history
+    msgs = list(state.get("messages") or [])
+    msgs.append({"role": "user", "content": req.message})
+    state["messages"] = msgs
+
     # Let the orchestrator LLM interpret the user's intent
     intent = interpret_user_intent(req.message, state)
     action = intent.get("action", "chitchat")
     response_text = intent.get("response_text", "")
     parameters = intent.get("parameters") or {}
+
+    # Persist assistant response to state for future context
+    if response_text:
+        state["messages"].append({"role": "assistant", "content": response_text})
+    update_session(session_id, state=state)
 
     if action == "chitchat":
         return StepResponse(
