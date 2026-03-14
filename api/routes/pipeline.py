@@ -144,15 +144,28 @@ def _run_single_step(session_id: str, action: str, state: dict):
                         f"I found {n_jobs} job matches and compared your skills against each role. "
                         f"Your top match is **{top['title']}** at **{top['company']}**"
                         f"{f' (gaps: {missing})' if missing_list else ''}. "
-                        "Which role interests you? I'll show you a learning plan, "
-                        "salary insights, and draft a cover letter for it."
+                        "Which role interests you?"
                     )
                 else:
                     suggestion = (
-                        f"I found {n_jobs} job matches! Which one interests you? "
-                        "I'll prepare everything you need to apply."
+                        f"I found {n_jobs} job matches! Which one interests you?"
                     )
-                msgs.append({"role": "assistant", "content": suggestion})
+
+                # Build clickable job suggestion buttons from top results
+                scored = entry.get("scored_jobs", [])
+                job_suggestions = []
+                for j in scored[:5]:
+                    title = j.get("title", "")
+                    company = j.get("company", "")
+                    if title and company:
+                        job_suggestions.append(f"I'm interested in {title} at {company}")
+
+                suggestion_msg = {
+                    "role": "assistant",
+                    "content": suggestion,
+                    "suggestions": job_suggestions,
+                }
+                msgs.append(suggestion_msg)
         elif action == "pitching":
             msgs.append({"role": "assistant", "content": (
                 "Your cover letter is ready! You can also ask me to search for "

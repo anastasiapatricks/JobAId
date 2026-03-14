@@ -397,6 +397,30 @@ export class ChatPageComponent implements OnInit, OnDestroy {
           const action = lastAction || results.last_action || '';
           const finalStages = results.completed_stages || completedStages;
           this.chat.addResults(results, action, finalStages);
+
+          // After discovery, show job pick suggestions from backend messages
+          if (action === 'discovery') {
+            const state = (results as any);
+            // Find the latest assistant message with suggestions
+            // (stored by the pipeline after triage runs)
+            const disc = results.results?.filter(r => r.action === 'discovery') || [];
+            if (disc.length > 0) {
+              const scored = disc[disc.length - 1].scored_jobs || [];
+              const jobSuggestions = scored.slice(0, 5).map(
+                (j: any) => `I'm interested in ${j.title} at ${j.company}`
+              );
+              if (jobSuggestions.length > 0) {
+                const msg: any = {
+                  type: 'text', sender: 'system',
+                  text: 'Which role interests you? I\'ll show you a learning plan, salary insights, and draft a cover letter.',
+                  suggestions: jobSuggestions,
+                  completedStages: finalStages,
+                };
+                this.chat['addMessage'](msg);
+              }
+            }
+          }
+
           this.state = 'awaiting_input';
         },
         onError: (error) => {
