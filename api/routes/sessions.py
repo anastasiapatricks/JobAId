@@ -1,6 +1,10 @@
 """Session management endpoints."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException
+
+logger = logging.getLogger("jobaid.api")
 from models.api_models import SessionCreateRequest, SessionCreateResponse
 from api.dependencies import create_session, get_session, delete_session, list_sessions
 
@@ -29,6 +33,7 @@ async def list_all():
 async def get(session_id: str):
     session = get_session(session_id)
     if not session:
+        logger.warning(f'{{"event":"session_not_found","session_id":"{session_id}","op":"get"}}')
         raise HTTPException(status_code=404, detail="Session not found")
     return {"session_id": session["session_id"], "status": session["status"]}
 
@@ -36,5 +41,6 @@ async def get(session_id: str):
 @router.delete("/{session_id}")
 async def delete(session_id: str):
     if not delete_session(session_id):
+        logger.warning(f'{{"event":"session_not_found","session_id":"{session_id}","op":"delete"}}')
         raise HTTPException(status_code=404, detail="Session not found")
     return {"message": "Session deleted"}

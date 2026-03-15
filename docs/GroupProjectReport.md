@@ -384,6 +384,10 @@ The de-biased resume (`resume_debiased`) is used for job scoring and matching, w
 - **Stage history** — full audit trail of pipeline stage transitions
 - **Results array** — append-only storage of all agent outputs; running an agent twice preserves both results
 - **Grounding check** — the summariser's output is validated against actual session data to detect hallucination
+- **Structured logging as a traceability tool** — every layer of the system emits structured JSON logs that can be correlated by `session_id` to reconstruct a full execution trace for any user session. The middleware (`api/middleware.py`) assigns a unique `request_id` and extracts the `session_id` from URL paths, propagating it via Python `contextvars` so that downstream LLM calls (`utils/llm_logger.py`), pipeline stage events (`graph/nodes.py`), guardrail triggers, and external API calls all carry the same session context. This provides end-to-end traceability from the initial HTTP request through every LLM invocation to the final response.
+- **Frontend telemetry pipeline** — the Angular frontend captures client-side events (HTTP errors, slow requests, application-level logs) via a `LoggingService` that buffers entries and flushes them in batches to a `POST /api/telemetry` backend endpoint. These frontend logs are written to the `jobaid.frontend` logger, landing in the same CloudWatch log group as backend logs, enabling cross-layer correlation by `session_id`.
+- **LLM session summaries** — at session completion, an aggregate summary is logged with total LLM calls, total tokens consumed, cumulative latency, and average latency per call, providing a per-session cost and performance audit trail.
+- **CloudWatch Logs Insights for explainability** — all structured logs are queryable via CloudWatch Logs Insights, enabling operators to answer explainability questions such as "why did this session take 30 seconds?", "which agent consumed the most tokens?", or "did any guardrails fire for this user?". A dedicated guide (`docs/CloudWatchLogsGuide.md`) documents common queries and analysis techniques.
 
 ### 5.4 Governance Framework Alignment
 
@@ -394,7 +398,7 @@ The system aligns with **IMDA's Model AI Governance Framework** principles:
 | **Transparency** | Decision log, stage history, matching explanations, confidence scores |
 | **Fairness** | PII de-biasing, gender indicator removal, skill-based (not identity-based) matching |
 | **Human Agency** | HITL review checkpoints at parsing, discovery, and pitching stages; user can approve/reject/provide feedback |
-| **Accountability** | Bounded autonomy limits (max iterations, retries, LLM calls); structured logging with request IDs |
+| **Accountability** | Bounded autonomy limits (max iterations, retries, LLM calls); structured logging with request IDs; per-session LLM cost summaries; full execution traces reconstructable via `session_id` correlation across all log layers |
 | **Robustness** | Input validation, output structure validation, grounding checks, model routing, graceful fallbacks for all external APIs (see Section 6 for full guardrails detail) |
 
 ---
@@ -707,15 +711,20 @@ terraform destroy                  # Teardown all resources
 
 | Log Type | Source | Format | Destination |
 |---|---|---|---|
-| API request logs | `api/middleware.py` | Structured JSON | stdout → CloudWatch |
-| LLM call logs | `utils/llm_logger.py` | Structured JSON (model, task_type, tokens, latency, status) | stdout → CloudWatch |
+| API request logs | `api/middleware.py` | Structured JSON (`request_id`, `session_id`, `method`, `path`, `status`, `duration`, `query`) | stdout → CloudWatch |
+| LLM call logs | `utils/llm_logger.py` | Structured JSON (`model`, `task_type`, `tokens`, `latency_ms`, `status`, `session_id`) | stdout → CloudWatch |
+| LLM session summaries | `utils/llm_logger.py` | Structured JSON (`total_calls`, `total_tokens`, `total_latency_ms`, `avg_latency_ms`) | stdout → CloudWatch |
 | Session lifecycle | `api/dependencies.py` | Structured JSON (create, update, delete, evict) | stdout → CloudWatch |
-| Pipeline stages | `graph/nodes.py` | Structured JSON (stage, timing, status) | stdout → CloudWatch |
-| Guardrail triggers | `guardrails/bounded_autonomy.py`, `guardrails/input_filter.py`, `guardrails/output_filter.py` (via agent-level logging) | Structured JSON (trigger type, details) | stdout → CloudWatch |
-| External API calls | `tools/job_board_api.py`, `tools/tavily_search.py` | Structured JSON (API, timing, result count) | stdout → CloudWatch |
+| Pipeline stages | `graph/nodes.py` | Structured JSON (`stage`, `latency_ms`, `status`, `session_id`) | stdout → CloudWatch |
+| Guardrail triggers | `guardrails/bounded_autonomy.py`, `guardrails/input_filter.py`, `guardrails/output_filter.py` (via agent-level logging) | Structured JSON (`guardrail`, `stage`, `detail`) | stdout → CloudWatch |
+| External API calls | `tools/job_board_api.py`, `tools/tavily_search.py` | Structured JSON (`service`, `operation`, `latency_ms`, `result_count`) | stdout → CloudWatch |
+| Frontend telemetry | `api/routes/telemetry.py` (ingests from Angular `LoggingService`) | Structured JSON (`level`, `message`, `session_id`, `client_ts`, `context`) | stdout → CloudWatch |
+| Debug traces | `utils/__init__.py` | Structured JSON (`event: "debug"`, `prefix`, `message`) | stdout → CloudWatch |
 | Decision logs | `agents/orchestrator.py` | JSON in session state | API response |
 | Stage history | `models/state.py` | Array in session state | API response |
 | Agent errors | `graph/nodes.py` | JSON error entries | stdout + session state |
+
+All backend log types share a common `session_id` field (propagated via Python `contextvars`), enabling cross-layer correlation in CloudWatch Logs Insights. See `docs/CloudWatchLogsGuide.md` for query examples and analysis techniques.
 
 ---
 
@@ -725,25 +734,28 @@ terraform destroy                  # Teardown all resources
 
 | Type | Tests | Scope |
 |---|---|---|
-| **Unit Tests** | 42 | Individual guardrail functions (input filter, output filter, bounded autonomy, PII sanitiser) |
-| **Integration Tests** | 12 | FastAPI endpoint testing (health check, session CRUD lifecycle) via TestClient |
+| **Unit Tests** | 46 | Individual guardrail functions (input filter, output filter, bounded autonomy, PII sanitiser), debug logging |
+| **Integration Tests** | 22 | FastAPI endpoint testing (health check, session CRUD lifecycle, telemetry ingestion, middleware logging) via TestClient |
 | **AI Security Tests** | 19 | Prompt injection detection (all 7 patterns), adversarial inputs (case variations, extra whitespace, Unicode), input length enforcement |
 | **Dependency Security Scans** | 2 jobs | `pip-audit` (Python CVEs), `npm audit` (frontend CVEs) |
 
 ### 9.2 Test Results
 
 ```
-======================== 92 passed, 2 warnings in 2.91s ========================
+======================== 105 passed, 2 warnings in 1.94s ========================
 
 tests/test_bounded_autonomy.py   14 passed
+tests/test_debug_logging.py       4 passed
 tests/test_health.py              5 passed
 tests/test_input_filter.py       19 passed
+tests/test_middleware.py          3 passed
 tests/test_output_filter.py      14 passed
 tests/test_pii_sanitizer.py      14 passed
 tests/test_sessions.py            7 passed
+tests/test_telemetry.py           6 passed
 ```
 
-All 92 tests pass. The 2 warnings are deprecation notices for FastAPI's `on_event` (informational only, non-blocking).
+All 105 tests pass. The 2 warnings are deprecation notices for FastAPI's `on_event` (informational only, non-blocking).
 
 ### 9.3 Key AI Security Test Findings
 

@@ -3,10 +3,34 @@
 import json
 import time
 import logging
+import contextvars
 from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger("jobaid.llm")
+
+# Context var for session_id — set by middleware or explicitly in background threads
+_session_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "llm_session_id", default=None
+)
+
+
+def set_session_id(session_id: str) -> None:
+    """Set session_id for the current context (call from background threads)."""
+    _session_id_var.set(session_id)
+
+
+def _get_session_id() -> str | None:
+    """Get session_id from local contextvar or middleware contextvar."""
+    sid = _session_id_var.get()
+    if sid:
+        return sid
+    # Fallback to middleware contextvar
+    try:
+        from api.middleware import current_session_id
+        return current_session_id.get()
+    except Exception:
+        return None
 
 
 class LLMCallLogger:
@@ -69,6 +93,7 @@ def logged_invoke(llm, messages, task_type: str):
 
     Drop-in replacement for llm.invoke(messages) — returns the same response object.
     """
+    session_id = _get_session_id()
     start = time.time()
     try:
         response = llm.invoke(messages)
@@ -85,6 +110,8 @@ def logged_invoke(llm, messages, task_type: str):
             "latency_ms": round(latency, 1),
             "status": "success",
         }
+        if session_id:
+            entry["session_id"] = session_id
         logger.info(json.dumps(entry))
         return response
     except Exception as e:
@@ -98,5 +125,7 @@ def logged_invoke(llm, messages, task_type: str):
             "status": "error",
             "error": str(e)[:200],
         }
+        if session_id:
+            entry["session_id"] = session_id
         logger.error(json.dumps(entry))
         raise

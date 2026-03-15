@@ -1,8 +1,12 @@
 """Resume upload endpoint."""
 
 import io
+import json
+import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
+
+logger = logging.getLogger("jobaid.api")
 from models.api_models import ResumeUploadResponse
 from api.dependencies import get_session, update_session
 
@@ -51,18 +55,35 @@ async def upload_resume(session_id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="Session not found")
 
     content = await file.read()
+    logger.info(json.dumps({
+        "event": "resume_upload",
+        "session_id": session_id,
+        "filename": file.filename or "",
+        "file_size": len(content),
+    }))
 
     try:
         resume_text = _extract_text(file.filename, content)
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error(json.dumps({
+            "event": "resume_parse_error",
+            "session_id": session_id,
+            "error": str(exc)[:500],
+        }))
         raise HTTPException(
             status_code=400, detail=f"Could not parse resume: {exc}"
         ) from exc
 
     if not resume_text:
         raise HTTPException(status_code=400, detail="Resume file is empty")
+
+    logger.info(json.dumps({
+        "event": "resume_parsed",
+        "session_id": session_id,
+        "text_length": len(resume_text),
+    }))
 
     state = session.get("state", {})
     state["resume_text"] = resume_text
