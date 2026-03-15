@@ -27,12 +27,13 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
   template: `
     <div class="chat-layout">
       <jobaid-agent-sidebar></jobaid-agent-sidebar>
-      
+
       <div class="chat-page">
         <jobaid-message-list
           [messages]="chat.messages()"
           [isTyping]="chat.isTyping()"
           [typingMessage]="typingMessage"
+          (suggestionClicked)="onSuggestionClicked($event)"
         ></jobaid-message-list>
 
         @if (state === 'running') {
@@ -150,13 +151,14 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   }
 
   async onFileUploaded(file: File): Promise<void> {
-    if (this.state !== 'awaiting_resume') return;
+    this.resetForNewResume();
 
     this.log.info('Resume file upload started', { filename: file.name, size: file.size });
     this.chat.setTyping(true);
 
     try {
       const sessionId = await this.session.ensureSession();
+
       this.api.uploadResume(sessionId, file).subscribe({
         next: (res) => {
           this.log.info('Resume upload complete', { text_length: res.resume_text.length });
@@ -168,21 +170,80 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         error: (err) => {
           this.log.error('Resume upload failed', { error: err?.error?.detail });
           this.chat.setTyping(false);
-          this.chat.addError(err?.error?.detail || 'Failed to upload resume. Please try again.');
+          this.chat.addError(err?.error?.detail || 'Failed to upload resume.\nPlease try again.');
+          this.state = 'awaiting_resume';
         },
       });
     } catch {
       this.chat.setTyping(false);
-      this.chat.addError('Failed to create session. Is the backend running?');
+      this.chat.addError('Failed to create session.\nIs the backend running?');
+      this.state = 'awaiting_resume';
     }
   }
 
+  private resetForNewResume(): void {
+    this.pipeline.stopPolling();
+    this.chat.clear();
+    this.chat.addWelcome();
+    this.state = 'awaiting_resume';
+    this.resumeText = '';
+    this.session.clear();
+  }
   async onResumePasted(text: string): Promise<void> {
     if (this.state !== 'awaiting_resume') return;
 
     this.resumeText = text;
     this.chat.addResumeMessage(text, 'Pasted text');
     this.startParsing();
+  }
+
+  private generateJobSuggestions(resumeInfo: Record<string, any>): string[] {
+    const suggestions: string[] = [];
+    const seen = new Set<string>();
+
+    // Extract from experience titles
+    const experience = resumeInfo['experience'] || [];
+    for (const exp of experience) {
+      const title = (exp['title'] || '').toLowerCase();
+      if (title && !seen.has(title)) {
+        seen.add(title);
+        // Clean up and capitalize
+        const clean = title.replace(/\b(senior|junior|lead|principal|staff|deputy|intern)\b/gi, '').trim();
+        if (clean.length > 3) {
+          suggestions.push(`Find ${clean} jobs`);
+        }
+      }
+    }
+
+    // Extract from professional summary keywords
+    const summary = (resumeInfo['professional_summary'] || '').toLowerCase();
+    const domainKeywords = [
+      'malware analysis', 'incident response', 'digital forensics', 'threat intelligence',
+      'penetration testing', 'cybersecurity', 'data science', 'machine learning',
+      'software engineering', 'backend', 'frontend', 'full stack', 'devops',
+      'cloud architecture', 'data engineering', 'product management', 'project management',
+      'business analysis', 'financial analysis', 'marketing', 'ux design', 'ui design',
+    ];
+    for (const kw of domainKeywords) {
+      if (summary.includes(kw) && !seen.has(kw)) {
+        seen.add(kw);
+        suggestions.push(`Find ${kw} jobs`);
+      }
+    }
+
+    // Limit to 5 and ensure at least one generic fallback
+    const result = suggestions.slice(0, 5);
+    if (result.length < 3) {
+      const skills = (resumeInfo['skills']?.['technical'] || []).slice(0, 2);
+      if (skills.length > 0) {
+        result.push(`Find ${skills.join(' and ')} jobs`);
+      }
+    }
+    return result.slice(0, 5);
+  }
+
+  onSuggestionClicked(suggestion: string): void {
+    this.onMessageSent(suggestion);
   }
 
   async onMessageSent(text: string): Promise<void> {
@@ -270,11 +331,15 @@ export class ChatPageComponent implements OnInit, OnDestroy {
               if (skills.length > 0) {
                 greeting += ` I can see you have experience with ${skills.join(', ')}.`;
               }
-              greeting += '\n\nWhat would you like to do? You can ask me to:\n- Search for jobs (e.g., "Find Python developer jobs in Singapore")\n- Analyze market trends (e.g., "What\'s the fintech job market like?")\n- Write a cover letter (after finding jobs)\n- Summarize your session results';
-              this.chat.addSystemText(greeting, completed);
+              greeting += '\n\nHere are some job searches based on your profile — click one or type your own (e.g., "Find cloud security jobs in Singapore"):';
+
+              // Generate job search suggestions from resume data
+              const suggestions = this.generateJobSuggestions(resumeInfo);
+              const msg: any = { type: 'text', sender: 'system', text: greeting, completedStages: completed, suggestions };
+              this.chat['addMessage'](msg);
             } else {
               this.chat.addSystemText(
-                'Resume parsed! What would you like to do? Try asking me to search for jobs, analyze the market, or write a cover letter.',
+                'Resume parsed! What kind of jobs are you looking for?',
                 completed
               );
             }
@@ -342,6 +407,30 @@ export class ChatPageComponent implements OnInit, OnDestroy {
           const action = lastAction || results.last_action || '';
           const finalStages = results.completed_stages || completedStages;
           this.chat.addResults(results, action, finalStages);
+
+          // After discovery, show job pick suggestions from backend messages
+          if (action === 'discovery') {
+            const state = (results as any);
+            // Find the latest assistant message with suggestions
+            // (stored by the pipeline after triage runs)
+            const disc = results.results?.filter(r => r.action === 'discovery') || [];
+            if (disc.length > 0) {
+              const scored = disc[disc.length - 1].scored_jobs || [];
+              const jobSuggestions = scored.slice(0, 5).map(
+                (j: any) => `I'm interested in ${j.title} at ${j.company}`
+              );
+              if (jobSuggestions.length > 0) {
+                const msg: any = {
+                  type: 'text', sender: 'system',
+                  text: 'Which role interests you? I\'ll show you a learning plan, salary insights, and draft a cover letter.',
+                  suggestions: jobSuggestions,
+                  completedStages: finalStages,
+                };
+                this.chat['addMessage'](msg);
+              }
+            }
+          }
+
           this.state = 'awaiting_input';
         },
         onError: (error) => {

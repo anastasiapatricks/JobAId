@@ -1,21 +1,33 @@
 [
   {
-    "role": "Software Engineer",
-    "level": "junior",
-    "min_salary": 48000,
-    "max_salary": 72000,
-    "median_salary": 60000,
+    "role": "Software Developer",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 108000,
+    "median_salary": 96000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Software Developer",
+    "level": "senior",
+    "min_salary": 108000,
+    "max_salary": 168000,
+    "median_salary": 132000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
     "role": "Software Engineer",
     "level": "mid",
-    "min_salary": 72000,
+    "min_salary": 84000,
     "max_salary": 108000,
-    "median_salary": 90000,
+    "median_salary": 96000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
     "role": "Software Engineer",
@@ -24,124 +36,358 @@
     "max_salary": 168000,
     "median_salary": 132000,
     "currency": "SGD",
-    "location": "Singapore"
-  },
-  {
-    "role": "Backend Engineer",
-    "level": "mid",
-    "min_salary": 78000,
-    "max_salary": 120000,
-    "median_salary": 96000,
-    "currency": "SGD",
-    "location": "Singapore"
-  },
-  {
-    "role": "Frontend Engineer",
-    "level": "mid",
-    "min_salary": 72000,
-    "max_salary": 108000,
-    "median_salary": 84000,
-    "currency": "SGD",
-    "location": "Singapore"
-  },
-  {
-    "role": "Full-stack Engineer",
-    "level": "mid",
-    "min_salary": 78000,
-    "max_salary": 120000,
-    "median_salary": 96000,
-    "currency": "SGD",
-    "location": "Singapore"
-  },
-  {
-    "role": "Data Engineer",
-    "level": "mid",
-    "min_salary": 84000,
-    "max_salary": 132000,
-    "median_salary": 102000,
-    "currency": "SGD",
-    "location": "Singapore"
-  },
-  {
-    "role": "Data Scientist",
-    "level": "mid",
-    "min_salary": 84000,
-    "max_salary": 144000,
-    "median_salary": 108000,
-    "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
     "role": "DevOps Engineer",
     "level": "mid",
-    "min_salary": 84000,
+    "min_salary": 96000,
     "max_salary": 132000,
-    "median_salary": 102000,
+    "median_salary": 114000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "DevOps Engineer",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 168000,
+    "median_salary": 144000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Data Scientist",
+    "level": "mid",
+    "min_salary": 96000,
+    "max_salary": 144000,
+    "median_salary": 120000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Data Scientist",
+    "level": "senior",
+    "min_salary": 144000,
+    "max_salary": 216000,
+    "median_salary": 180000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "AI Engineer",
+    "level": "mid",
+    "min_salary": 108000,
+    "max_salary": 156000,
+    "median_salary": 132000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "AI Engineer",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 192000,
+    "median_salary": 168000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
     "role": "ML Engineer",
+    "level": "mid",
+    "min_salary": 108000,
+    "max_salary": 156000,
+    "median_salary": 132000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "ML Engineer",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 192000,
+    "median_salary": 168000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Cybersecurity Specialist",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 96000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Cybersecurity Specialist",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 150000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Cybersecurity Engineer",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 96000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Cybersecurity Engineer",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 144000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Cybersecurity Analyst",
+    "level": "junior",
+    "min_salary": 48000,
+    "max_salary": 60000,
+    "median_salary": 54000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Cybersecurity Analyst",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 96000,
+    "median_salary": 84000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Malware Analyst",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 96000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Malware Analyst",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 144000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Incident Response",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 96000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Incident Response",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 144000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Threat Intelligence Analyst",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 96000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Threat Intelligence Analyst",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 144000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Security Engineer",
+    "level": "mid",
+    "min_salary": 96000,
+    "max_salary": 132000,
+    "median_salary": 114000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Security Engineer",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 192000,
+    "median_salary": 156000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Penetration Tester",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 120000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Digital Forensics",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 108000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Digital Forensics",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 144000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Financial Analyst",
+    "level": "mid",
+    "min_salary": 90000,
+    "max_salary": 108000,
+    "median_salary": 99000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Financial Analyst",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 150000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Risk Manager",
+    "level": "mid",
+    "min_salary": 96000,
+    "max_salary": 144000,
+    "median_salary": 120000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Risk Manager",
+    "level": "senior",
+    "min_salary": 156000,
+    "max_salary": 216000,
+    "median_salary": 186000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Insurance Underwriter",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 96000,
+    "median_salary": 87000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Management Consultant",
     "level": "mid",
     "min_salary": 96000,
     "max_salary": 156000,
     "median_salary": 120000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
-    "role": "Platform Engineer",
-    "level": "mid",
-    "min_salary": 84000,
-    "max_salary": 132000,
-    "median_salary": 108000,
-    "currency": "SGD",
-    "location": "Singapore"
-  },
-  {
-    "role": "Site Reliability Engineer",
-    "level": "mid",
-    "min_salary": 90000,
-    "max_salary": 144000,
-    "median_salary": 114000,
-    "currency": "SGD",
-    "location": "Singapore"
-  },
-  {
-    "role": "Solutions Architect",
+    "role": "Management Consultant",
     "level": "senior",
-    "min_salary": 120000,
+    "min_salary": 180000,
+    "max_salary": 300000,
+    "median_salary": 240000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "HR Director",
+    "level": "senior",
+    "min_salary": 144000,
     "max_salary": 192000,
-    "median_salary": 156000,
-    "currency": "SGD",
-    "location": "Singapore"
-  },
-  {
-    "role": "Cloud Architect",
-    "level": "senior",
-    "min_salary": 132000,
-    "max_salary": 204000,
     "median_salary": 168000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
-    "role": "Cybersecurity Analyst",
-    "level": "mid",
-    "min_salary": 72000,
-    "max_salary": 120000,
-    "median_salary": 96000,
+    "role": "Marketing Director",
+    "level": "senior",
+    "min_salary": 120000,
+    "max_salary": 180000,
+    "median_salary": 150000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
-    "role": "QA Engineer",
-    "level": "mid",
-    "min_salary": 60000,
-    "max_salary": 96000,
-    "median_salary": 78000,
+    "role": "Legal Counsel",
+    "level": "senior",
+    "min_salary": 144000,
+    "max_salary": 216000,
+    "median_salary": 180000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
     "role": "Product Manager",
@@ -150,15 +396,207 @@
     "max_salary": 156000,
     "median_salary": 120000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   },
   {
-    "role": "Business Analyst",
+    "role": "Data Engineer",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 132000,
+    "median_salary": 108000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Data Engineer",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 180000,
+    "median_salary": 156000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Cloud Architect",
+    "level": "senior",
+    "min_salary": 144000,
+    "max_salary": 216000,
+    "median_salary": 180000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Solutions Architect",
+    "level": "senior",
+    "min_salary": 132000,
+    "max_salary": 204000,
+    "median_salary": 168000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Backend Engineer",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 120000,
+    "median_salary": 96000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Frontend Engineer",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 108000,
+    "median_salary": 90000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Full-stack Engineer",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 120000,
+    "median_salary": 102000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Platform Engineer",
+    "level": "mid",
+    "min_salary": 96000,
+    "max_salary": 132000,
+    "median_salary": 114000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Site Reliability Engineer",
+    "level": "mid",
+    "min_salary": 96000,
+    "max_salary": 144000,
+    "median_salary": 120000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "QA Engineer",
     "level": "mid",
     "min_salary": 60000,
     "max_salary": 96000,
     "median_salary": 78000,
     "currency": "SGD",
-    "location": "Singapore"
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Business Analyst",
+    "level": "mid",
+    "min_salary": 66000,
+    "max_salary": 96000,
+    "median_salary": 78000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Supply Chain Manager",
+    "level": "mid",
+    "min_salary": 96000,
+    "max_salary": 144000,
+    "median_salary": 120000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Civil Engineer",
+    "level": "senior",
+    "min_salary": 84000,
+    "max_salary": 120000,
+    "median_salary": 102000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "E-commerce Manager",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 120000,
+    "median_salary": 102000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Pharmacist",
+    "level": "senior",
+    "min_salary": 90000,
+    "max_salary": 114000,
+    "median_salary": 102000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Registered Nurse",
+    "level": "senior",
+    "min_salary": 78000,
+    "max_salary": 102000,
+    "median_salary": 90000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "Project Manager",
+    "level": "mid",
+    "min_salary": 84000,
+    "max_salary": 132000,
+    "median_salary": 108000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "role": "SOC Analyst",
+    "level": "junior",
+    "min_salary": 48000,
+    "max_salary": 60000,
+    "median_salary": 54000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "SOC Analyst",
+    "level": "mid",
+    "min_salary": 78000,
+    "max_salary": 96000,
+    "median_salary": 87000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "MOM 2024 via Centre for Cybersecurity"
+  },
+  {
+    "role": "Network Engineer",
+    "level": "mid",
+    "min_salary": 72000,
+    "max_salary": 108000,
+    "median_salary": 90000,
+    "currency": "SGD",
+    "location": "Singapore",
+    "source": "Mavenside Singapore Salary Guide 2025"
   }
 ]

@@ -1,7 +1,7 @@
 import { Component, Input } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { JobCardComponent } from './job-card.component';
-import { ScoredJob } from '../../../core/models/results.model';
+import { ScoredJob, SkillTriageEntry } from '../../../core/models/results.model';
 
 @Component({
   selector: 'jobaid-job-list',
@@ -13,7 +13,7 @@ import { ScoredJob } from '../../../core/models/results.model';
       <h3>Job Matches ({{ jobs.length }})</h3>
     </div>
     @for (job of jobs; track job.title + job.company) {
-      <jobaid-job-card [job]="job"></jobaid-job-card>
+      <jobaid-job-card [job]="job" [triage]="getTriageFor(job)"></jobaid-job-card>
     }
     @empty {
       <p class="empty">No job matches found.</p>
@@ -37,4 +37,12 @@ import { ScoredJob } from '../../../core/models/results.model';
 })
 export class JobListComponent {
   @Input({ required: true }) jobs: ScoredJob[] = [];
+  @Input() triage: SkillTriageEntry[] = [];
+
+  getTriageFor(job: ScoredJob): SkillTriageEntry | null {
+    if (!this.triage?.length) return null;
+    return this.triage.find(
+      t => t.title === job.title && t.company === job.company
+    ) ?? null;
+  }
 }

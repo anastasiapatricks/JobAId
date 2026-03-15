@@ -25,7 +25,7 @@ import { CoverLetterComponent } from './components/cover-letter.component';
         }
 
         @if (show('scored_jobs') && entry.scored_jobs?.length) {
-          <jobaid-job-list [jobs]="entry.scored_jobs!"></jobaid-job-list>
+          <jobaid-job-list [jobs]="entry.scored_jobs!" [triage]="entry.skill_triage ?? []"></jobaid-job-list>
         }
 
         @if (show('skill_gaps') && entry.skill_gaps?.length) {
@@ -68,7 +68,7 @@ export class ResultsContainerComponent implements OnChanges {
   private static ACTION_SECTIONS: Record<string, string[]> = {
     discovery: ['scored_jobs'],
     market_intel: ['skill_gaps', 'upskilling_roadmap', 'salary_insights', 'market_outlook', 'industry_trends'],
-    pitching: ['final_pitch'],
+    pitching: ['skill_gaps', 'upskilling_roadmap', 'salary_insights', 'market_outlook', 'final_pitch'],
     summarizing: ['summary'],
   };
 
@@ -82,11 +82,30 @@ export class ResultsContainerComponent implements OnChanges {
     const arr = this.results.results;
     if (this.action) {
       // Find the last entry matching this action
+      let entry: ResultEntry | null = null;
       for (let i = arr.length - 1; i >= 0; i--) {
         if (arr[i].action === this.action) {
-          return arr[i];
+          entry = { ...arr[i] };
+          break;
         }
       }
+
+      // For pitching: merge in market_intel data so learning plan
+      // and salary show alongside the cover letter
+      if (this.action === 'pitching' && entry) {
+        for (let i = arr.length - 1; i >= 0; i--) {
+          if (arr[i].action === 'market_intel') {
+            const mi = arr[i];
+            if (!entry.skill_gaps && mi.skill_gaps) entry.skill_gaps = mi.skill_gaps;
+            if (!entry.upskilling_roadmap && mi.upskilling_roadmap) entry.upskilling_roadmap = mi.upskilling_roadmap;
+            if (!entry.salary_insights && mi.salary_insights) entry.salary_insights = mi.salary_insights;
+            if (!entry.market_outlook && mi.market_outlook) entry.market_outlook = mi.market_outlook;
+            break;
+          }
+        }
+      }
+
+      return entry;
     }
 
     // Fallback: return the last entry

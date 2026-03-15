@@ -1,74 +1,128 @@
 [
   {
-    "industry": "software_engineering",
-    "topic": "AI-assisted development",
+    "content": "Singapore's digital economy reached 18.6% of GDP in 2024, up from 14.9% in 2019. More than two-thirds of digital growth comes from non-ICT sectors including Finance, Wholesale Trade, and Manufacturing, showing that digital transformation is an economy-wide phenomenon.",
+    "industry": "digital economy",
     "year": "2025",
-    "content": "AI-assisted software development has become mainstream with tools like GitHub Copilot, Cursor, and Claude Code transforming developer workflows. Companies increasingly expect engineers to be proficient with AI coding assistants, and job listings now frequently mention AI-augmented development as a desired skill. Engineers who can effectively leverage LLMs for code generation, debugging, and architecture decisions are seeing 15-20% salary premiums."
+    "topic": "digital economy growth",
+    "source": "IMDA Singapore Digital Economy Report 2025"
   },
   {
-    "industry": "software_engineering",
-    "topic": "Platform engineering",
+    "content": "Singapore's tech workforce grew from 208,300 in 2023 to 214,000 in 2024. Roles in AI/Data and Cybersecurity are among the fastest growing segments. Median monthly wage for resident tech workers is S$7,950, significantly above the national median of S$4,860.",
+    "industry": "technology",
     "year": "2025",
-    "content": "Platform engineering has emerged as a distinct discipline, with organizations building internal developer platforms (IDPs) to improve developer experience. Kubernetes-based platforms, service meshes, and GitOps workflows are standard. Demand for platform engineers who understand both infrastructure and developer workflows has grown 40% year-over-year in Singapore's tech market."
+    "topic": "tech workforce growth",
+    "source": "IMDA Singapore Digital Economy Report 2025"
   },
   {
-    "industry": "software_engineering",
-    "topic": "Rust adoption",
+    "content": "14.5% of Singapore SMEs adopted AI in 2024, up from 4.2% in 2023 — a 3.5x increase in one year. More than two-thirds of AI-adopting firms plan to prioritise workforce training and upskilling in the next 1-2 years.",
+    "industry": "artificial intelligence",
     "year": "2025",
-    "content": "Rust continues to gain enterprise adoption for performance-critical systems, with companies like AWS, Google, and Microsoft investing heavily. In Singapore, fintech and trading firms are actively hiring Rust developers for low-latency systems. The Rust ecosystem has matured significantly with stable async runtimes and web frameworks."
+    "topic": "AI adoption acceleration",
+    "source": "IMDA Singapore Digital Economy Report 2025"
   },
   {
-    "industry": "cloud",
-    "topic": "Multi-cloud strategy",
-    "year": "2025",
-    "content": "Multi-cloud adoption has become the default for enterprise organizations in Southeast Asia. Companies are investing in cloud-agnostic tooling like Terraform and Pulumi, and engineers with experience across AWS, GCP, and Azure command premium salaries. FinOps (cloud cost optimization) has also emerged as a critical skill set."
+    "content": "Singapore's National AI Strategy 2.0 aims to triple the local AI practitioner pool to 15,000 by 2026. IMDA is introducing AI fluency programmes for the tech workforce, including training software engineers to become full-stack developers capable of orchestrating AI agent systems.",
+    "industry": "artificial intelligence",
+    "year": "2026",
+    "topic": "national AI strategy",
+    "source": "IMDA National AI Impact Programme 2026"
   },
   {
-    "industry": "data",
-    "topic": "Real-time data and streaming",
-    "year": "2025",
-    "content": "Real-time data processing has moved from nice-to-have to essential. Apache Kafka, Apache Flink, and managed streaming services are widely adopted. Data engineers who can build end-to-end streaming pipelines with exactly-once semantics are in high demand. The shift from batch to streaming has increased demand for event-driven architecture expertise."
-  },
-  {
-    "industry": "data",
-    "topic": "Data mesh and decentralized data",
-    "year": "2025",
-    "content": "Data mesh principles — domain-oriented ownership, data as a product, self-serve platforms, and federated governance — are being adopted by large organizations in Singapore's banking and e-commerce sectors. Data engineers who understand both the technical and organizational aspects of data mesh are highly sought after."
-  },
-  {
-    "industry": "ai_ml",
-    "topic": "LLM operations and RAG",
-    "year": "2025",
-    "content": "Production LLM deployment has created demand for new skills: retrieval-augmented generation (RAG), vector databases, prompt engineering, LLM evaluation, and guardrails implementation. ML engineers who can build reliable LLM-powered applications with proper evaluation frameworks and safety measures are commanding top-tier compensation packages."
-  },
-  {
-    "industry": "ai_ml",
-    "topic": "MLOps maturity",
-    "year": "2025",
-    "content": "MLOps has matured with standardized tooling including MLflow, Weights & Biases, and managed ML platforms. Companies expect ML engineers to handle the full lifecycle from experimentation to production monitoring. Feature stores, model registries, and automated retraining pipelines are now table stakes for ML teams."
-  },
-  {
+    "content": "Over 4,000 cybersecurity roles remain unfilled in Singapore as of late 2025, with 400-800 new job vacancies posted monthly. The cybersecurity workforce has grown from 4,000 in 2016 to 12,000 in 2022, but demand continues to outpace supply.",
     "industry": "cybersecurity",
-    "topic": "AI-powered threats",
     "year": "2025",
-    "content": "The cybersecurity landscape has intensified with AI-powered threats including deepfake social engineering, automated vulnerability discovery, and LLM-assisted phishing. Singapore's Cybersecurity Agency has updated regulations requiring companies to implement AI-aware security measures. Demand for security professionals with AI/ML knowledge has surged 50%."
+    "topic": "cybersecurity talent shortage",
+    "source": "CSA Singapore Cyber Landscape 2024/2025"
   },
   {
+    "content": "Ministry of Manpower placed four cybersecurity roles on Singapore's 2026 Shortage Occupation List (SOL), creating local-first hiring pressure. In-demand roles include forensic analysts, penetration testers, cyber engineers, and security architects.",
+    "industry": "cybersecurity",
+    "year": "2026",
+    "topic": "cybersecurity shortage occupation list",
+    "source": "MOM Shortage Occupation List 2026"
+  },
+  {
+    "content": "64% of cybersecurity professionals in Singapore report experiencing burnout, citing the unrelenting pace and complexity of cyber threats. 53% plan to leave their current roles within the next year, exacerbating the talent shortage.",
+    "industry": "cybersecurity",
+    "year": "2025",
+    "topic": "cybersecurity workforce retention",
+    "source": "ISC2 2025 Cybersecurity Workforce Study"
+  },
+  {
+    "content": "Cybersecurity engineers in Singapore now earn a median monthly salary of S$8,000, placing them in the Top 20 highest-paying professions on par with risk managers and legal counsel.",
+    "industry": "cybersecurity",
+    "year": "2025",
+    "topic": "cybersecurity salaries",
+    "source": "MOM 2024 Occupational Wages via Centre for Cybersecurity"
+  },
+  {
+    "content": "Emerging hybrid Cyber-AI roles are growing rapidly in Singapore including AI Security Specialists, Security Data Analysts, and Automation/Detection Engineers. Over 80% of large Singapore enterprises have adopted cloud solutions, driving demand for cloud security skills.",
+    "industry": "cybersecurity",
+    "year": "2026",
+    "topic": "cyber-AI hybrid roles",
+    "source": "ITEL 2026 Cybersecurity and AI Hiring Trends"
+  },
+  {
+    "content": "AI and tech-specific skills dominate Singapore job postings in 2025-2026. Demand is rising for Python, SQL, cloud technologies, and AI/ML skills while traditional web development skills are becoming less prominent.",
+    "industry": "technology",
+    "year": "2026",
+    "topic": "in-demand tech skills",
+    "source": "IMDA Singapore Digital Economy Report 2025"
+  },
+  {
+    "content": "Professionals with expertise in AI/ML, cybersecurity, and cloud technologies can expect salary premiums of 15-25% across industries in Singapore. Specialised roles in AI engineering, cybersecurity, and green energy command salary jumps of 8-12%, well above the national average of 4%.",
+    "industry": "general",
+    "year": "2026",
+    "topic": "salary premiums for tech skills",
+    "source": "Reeracoen Singapore Salary Guide 2026"
+  },
+  {
+    "content": "Singapore's wage forecast for 2026 is 4.0-4.3% average increase across all sectors. Healthcare leads with ~6%, followed by IT/AI at 4-6%, Banking/Finance at 3-5%, and Manufacturing at ~4%.",
+    "industry": "general",
+    "year": "2026",
+    "topic": "wage growth forecast",
+    "source": "Reeracoen 2026 Workforce Planning"
+  },
+  {
+    "content": "CSA launched the OT Cybersecurity Masterplan 2024 and OTCEP Forum to strengthen cyber defence for critical industrial systems including energy, water, and transportation infrastructure in Singapore.",
+    "industry": "cybersecurity",
+    "year": "2025",
+    "topic": "OT/ICS cybersecurity",
+    "source": "CSA Singapore 2025"
+  },
+  {
+    "content": "SANS Institute and GIAC will deliver four fully AI-focused cybersecurity certifications by end of 2026, covering offensive AI, red team automation, model integrity, and AI-driven operations — reflecting the convergence of AI and cybersecurity skills.",
+    "industry": "cybersecurity",
+    "year": "2026",
+    "topic": "AI cybersecurity certifications",
+    "source": "SANS/GIAC 2026 announcement"
+  },
+  {
+    "content": "Finance & Insurance remains Singapore's largest digital economy contributor with a median monthly salary of S$8,950. The sector is investing heavily in AI for risk management, fraud detection, and algorithmic trading.",
+    "industry": "finance",
+    "year": "2025",
+    "topic": "finance digital transformation",
+    "source": "Mavenside Singapore Salary Guide 2025"
+  },
+  {
+    "content": "95% of Singapore SMEs are now onboard with digitalisation, accelerating demand for cloud, cybersecurity, and data analytics services across all industries.",
+    "industry": "digital economy",
+    "year": "2025",
+    "topic": "SME digitalisation",
+    "source": "IMDA 2025"
+  },
+  {
+    "content": "Production LLM deployment has created demand for new skills in Singapore: retrieval-augmented generation (RAG), vector databases, prompt engineering, LLM evaluation, and guardrails implementation. ML engineers who can build reliable LLM-powered applications are commanding top-tier compensation.",
+    "industry": "artificial intelligence",
+    "year": "2025",
+    "topic": "LLM operations and RAG",
+    "source": "Industry reports 2025"
+  },
+  {
+    "content": "Southeast Asia's digital banking sector continues rapid growth with Singapore as the regional hub. Digital banks and payment platforms are hiring engineers with experience in high-availability systems, regulatory compliance (MAS guidelines), and real-time payment processing.",
     "industry": "fintech",
-    "topic": "Digital banking in Southeast Asia",
     "year": "2025",
-    "content": "Southeast Asia's digital banking sector continues rapid growth with Singapore as the regional hub. Digital banks and payment platforms are aggressively hiring engineers with experience in high-availability systems, regulatory compliance (MAS guidelines), and real-time payment processing. Java/Spring Boot and Golang are the dominant backend stacks in Singapore fintech."
-  },
-  {
-    "industry": "general",
-    "topic": "Remote and hybrid work",
-    "year": "2025",
-    "content": "Hybrid work has stabilized as the norm in Singapore's tech industry, with most companies offering 2-3 days in office. Fully remote positions remain available primarily from US and European companies hiring in Singapore. Engineers open to hybrid arrangements have access to approximately 30% more opportunities than those requiring fully remote."
-  },
-  {
-    "industry": "general",
-    "topic": "Green software engineering",
-    "year": "2025",
-    "content": "Sustainability in software engineering is gaining traction with initiatives like the Green Software Foundation influencing hiring. Companies are beginning to measure and optimize the carbon footprint of their software systems. Engineers who understand energy-efficient coding practices and sustainable cloud architecture are seeing growing demand."
+    "topic": "digital banking growth",
+    "source": "Industry reports 2025"
   }
 ]

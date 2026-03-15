@@ -1,19 +1,24 @@
 """Market Intelligence agent — skill gaps, upskilling, salary, trends via RAG."""
 
 import json
+import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 
 from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
 from config.settings import settings
-from config.prompts import MARKET_INTELLIGENCE_SYSTEM
+from config.prompts import MARKET_INTELLIGENCE_SYSTEM, MARKET_INTELLIGENCE_PROMPT_VERSION
 from guardrails.input_filter import validate_job_query
+from guardrails.output_filter import validate_market_intel_output
 from guardrails.model_router import get_model_for_task
 from tools.chromadb_tools import search_collection
 from tools.tavily_search import search_courses, search_trends, search_salary
 from utils import debug, get_latest_results
 from utils.llm_logger import logged_invoke
+
+_agent_logger = logging.getLogger("jobaid.market_intel")
 
 
 def _parse_json_response(text: str) -> dict:
@@ -66,7 +71,7 @@ def _lookup_salary(job_query: str, years_exp: int | None) -> Dict[str, Any]:
     if years_exp is not None:
         if years_exp <= 2:
             level = "junior"
-        elif years_exp <= 6:
+        elif years_exp <= 5:
             level = "mid"
         else:
             level = "senior"
@@ -105,8 +110,139 @@ def _lookup_salary(job_query: str, years_exp: int | None) -> Dict[str, Any]:
     return {}
 
 
+def _build_skill_gap_explanations(
+    candidate_skills: List[str], job_requirements: List[str], skill_gaps: List[dict], scored_jobs: List[dict]
+) -> List[dict]:
+    """Add explainability trace to each skill gap — which jobs demand it and why it matters.
+
+    This provides local explanations for the XAI requirement, showing users
+    exactly which job listings drove each skill gap identification.
+    """
+    candidate_lower = {s.lower() for s in candidate_skills}
+    for gap in skill_gaps:
+        skill_name = gap.get("skill", "")
+        skill_lower = skill_name.lower()
+        # Find which jobs require this skill
+        demanding_jobs = []
+        for job in scored_jobs[:10]:
+            job_keywords = [kw.lower() for kw in job.get("keywords", [])]
+            job_desc = (job.get("description", "") + " " + job.get("title", "")).lower()
+            if skill_lower in job_keywords or skill_lower in job_desc:
+                demanding_jobs.append(job.get("title", "Unknown"))
+        gap["demanded_by_jobs"] = demanding_jobs[:5]
+        gap["in_candidate_profile"] = skill_lower in candidate_lower
+        gap["explanation"] = (
+            f"'{skill_name}' is required by {len(demanding_jobs)} of your top job matches"
+            f" ({', '.join(demanding_jobs[:3]) or 'general market demand'})"
+            f" but {'is' if gap['in_candidate_profile'] else 'is not'} in your current profile."
+        )
+    return skill_gaps
+
+
+def _verify_sources(
+    upskilling_roadmap: List[dict], courses_context: str, trends_context: str
+) -> List[dict]:
+    """Hallucination guard — cross-check recommended courses against source data.
+
+    Flags courses that cannot be traced back to Tavily search results or ChromaDB
+    RAG context, helping users distinguish grounded vs LLM-generated recommendations.
+    """
+    source_text_lower = (courses_context + " " + trends_context).lower()
+    for item in upskilling_roadmap:
+        verified_courses = []
+        for course in item.get("recommended_courses", []):
+            course_str = str(course)
+            # Check if the course name or URL appears in source context
+            course_lower = course_str.lower()
+            # Extract meaningful tokens (skip very short words)
+            tokens = [t for t in course_lower.split() if len(t) > 3]
+            match_count = sum(1 for t in tokens if t in source_text_lower)
+            is_grounded = match_count >= min(2, len(tokens)) if tokens else False
+            verified_courses.append({
+                "course": course_str,
+                "source_verified": is_grounded,
+            })
+        item["verified_courses"] = verified_courses
+        item["grounding_score"] = (
+            sum(1 for vc in verified_courses if vc["source_verified"])
+            / max(len(verified_courses), 1)
+        )
+    return upskilling_roadmap
+
+
+def skill_triage(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Quick skill-gap triage — pure Python, no LLM calls.
+
+    Compares candidate skills against each scored job's keywords to produce
+    a fast "skills you have vs skills you need" snapshot. Runs automatically
+    after job discovery to give users an instant overview before they decide
+    whether to request a full deep-dive market analysis.
+    """
+    candidate_skills = _get_candidate_skills(state)
+    candidate_lower = {s.lower().strip() for s in candidate_skills if s}
+
+    # Also extract known skills from resume text for broader matching
+    # (the parsed skills list may only have tool names like "IDA Pro"
+    #  but not domain terms like "malware analysis" or "incident response")
+    latest = get_latest_results(state)
+    resume_info = latest.get("resume_info") or state.get("resume_info") or {}
+    resume_text_parts = [
+        resume_info.get("professional_summary", ""),
+        " ".join(t.get("description", "") for t in resume_info.get("experience", []) if isinstance(t, dict)),
+    ]
+    resume_text = " ".join(resume_text_parts).lower()
+    try:
+        from tools.job_board_api import _extract_keywords_from_text
+        resume_extracted = set(_extract_keywords_from_text(resume_text))
+        candidate_lower = candidate_lower | resume_extracted
+    except ImportError:
+        pass
+
+    latest = get_latest_results(state)
+    scored_jobs = latest.get("scored_jobs") or state.get("scored_jobs") or []
+
+    triage_results = []
+    for job in scored_jobs[:10]:
+        job_keywords = job.get("keywords", [])
+        keywords_lower = {kw.lower().strip() for kw in job_keywords if kw}
+
+        matched = sorted(candidate_lower & keywords_lower)
+        missing = sorted(keywords_lower - candidate_lower)
+        total = len(keywords_lower)
+        ratio = len(matched) / max(total, 1)
+
+        triage_results.append({
+            "title": job.get("title", "Unknown"),
+            "company": job.get("company", "Unknown"),
+            "score": job.get("score", 0),
+            "skills_matched": matched,
+            "skills_missing": missing,
+            "match_ratio": round(ratio, 2),
+        })
+
+    # Build summary message
+    if triage_results:
+        top = triage_results[0]
+        n_matched = len(top["skills_matched"])
+        n_total = n_matched + len(top["skills_missing"])
+        missing_text = ", ".join(top["skills_missing"][:4]) or "none"
+        msg = (
+            f"[Skill Triage] Quick scan of {len(triage_results)} jobs: "
+            f"your top match is {top['title']} at {top['company']} "
+            f"({n_matched}/{n_total} skills). "
+            f"Key gaps: {missing_text}."
+        )
+    else:
+        msg = "[Skill Triage] No scored jobs to analyze."
+
+    return {
+        "skill_triage": triage_results,
+        "messages": [{"role": "assistant", "content": msg}],
+    }
+
+
 def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Analyze market intelligence: skill gaps, upskilling, salary, trends."""
+    """Deep-dive market analysis: skill gaps, upskilling, salary, trends via RAG."""
     candidate_skills = _get_candidate_skills(state)
     job_requirements = _get_top_job_requirements(state)
     job_query = state.get("job_query", "")
@@ -253,6 +389,54 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
     market_outlook = result.get("market_outlook", "")
     if not isinstance(market_outlook, str):
         market_outlook = str(market_outlook) if market_outlook else ""
+
+    # --- Output validation ---
+    validation_result = {
+        "skill_gaps": skill_gaps,
+        "upskilling_roadmap": upskilling_roadmap,
+        "salary_insights": salary_insights,
+        "industry_trends": industry_trends,
+        "market_outlook": market_outlook,
+    }
+    valid, issues = validate_market_intel_output(validation_result)
+    if not valid:
+        debug(f"Market Intel output validation issues: {issues}")
+        _agent_logger.warning(json.dumps({
+            "event": "output_validation_warning",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "issues": issues,
+            "prompt_version": MARKET_INTELLIGENCE_PROMPT_VERSION,
+        }))
+
+    # --- Explainability: enrich skill gaps with reasoning trace ---
+    scored_jobs = latest.get("scored_jobs") or state.get("scored_jobs") or []
+    skill_gaps = _build_skill_gap_explanations(
+        candidate_skills, job_requirements, skill_gaps, scored_jobs
+    )
+
+    # --- Hallucination guard: verify course recommendations against sources ---
+    upskilling_roadmap = _verify_sources(
+        upskilling_roadmap, courses_context or "", trends_context or ""
+    )
+
+    # Log prompt version for MLSecOps traceability
+    _agent_logger.info(json.dumps({
+        "event": "market_intel_complete",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "prompt_version": MARKET_INTELLIGENCE_PROMPT_VERSION,
+        "skill_gaps_count": len(skill_gaps),
+        "upskilling_items": len(upskilling_roadmap),
+        "grounded_courses": sum(
+            1 for item in upskilling_roadmap
+            for vc in item.get("verified_courses", [])
+            if vc.get("source_verified")
+        ),
+        "total_courses": sum(
+            len(item.get("verified_courses", []))
+            for item in upskilling_roadmap
+        ),
+        "output_valid": valid,
+    }))
 
     # Build message
     gaps_text = ", ".join(g.get("skill", "?") for g in skill_gaps[:5]) if skill_gaps else "None identified"

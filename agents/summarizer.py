@@ -58,8 +58,23 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Grounding check — verify summary references state data
     grounding_score = check_grounding(summary_text, state)
+    from datetime import datetime, timezone
+    _guard_logger.info(json.dumps({
+        "event": "grounding_check",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "agent": "summarizer",
+        "grounding_score": round(grounding_score, 2),
+        "passed": grounding_score >= 0.5,
+    }))
     if grounding_score < 0.5:
-        _guard_logger.warning(f"Low grounding score: {grounding_score:.2f}")
+        _guard_logger.warning(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "grounding_check",
+            "agent": "summarizer",
+            "grounding_score": round(grounding_score, 2),
+            "detail": "Summary may contain ungrounded claims",
+        }))
 
     # Append decision log if present
     log = state.get("decision_log") or []

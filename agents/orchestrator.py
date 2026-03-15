@@ -226,6 +226,9 @@ def _parse_router_json(text: str) -> dict:
 def interpret_user_intent(user_message: str, state: dict) -> dict:
     """Use LLM to interpret user message and decide which agent to run.
 
+    Includes recent conversation history so the LLM can resolve references
+    like "yes", "do that", "the second one", etc.
+
     Returns dict with: action, response_text, parameters.
     """
     state_summary = _build_state_summary(state)
@@ -245,12 +248,29 @@ def interpret_user_intent(user_message: str, state: dict) -> dict:
         temperature=0.1,
     )
 
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=spotlight_wrap(user_message)),
-    ]
+    # Build message list with recent conversation history for context
+    messages = [SystemMessage(content=system_prompt)]
 
-    debug(f"Orchestrator router: interpreting '{user_message}'")
+    # Include last few conversation turns so the LLM can resolve
+    # short replies like "yes", "do that", "the second one"
+    recent_messages = (state.get("messages") or [])[-6:]
+    for msg in recent_messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if not content:
+            continue
+        if role == "user":
+            messages.append(HumanMessage(content=content))
+        else:
+            from langchain.schema import AIMessage
+            messages.append(AIMessage(content=content))
+
+    # Add the current user message with a JSON reminder since conversation
+    # history can cause the model to drift into plain-text chat mode
+    wrapped = spotlight_wrap(user_message)
+    messages.append(HumanMessage(content=f"{wrapped}\n\nRespond with ONLY valid JSON matching the Response Format above."))
+
+    debug(f"Orchestrator router: interpreting '{user_message}' (with {len(recent_messages)} history msgs)")
     response = logged_invoke(llm, messages, "intent_routing")
 
     try:

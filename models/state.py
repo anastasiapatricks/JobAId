@@ -45,6 +45,7 @@ class JobAIdState(TypedDict, total=False):
     job_listings: List[Dict[str, Any]]
     scored_jobs: List[Dict[str, Any]]
     matching_explanation: List[str]
+    skill_triage: List[Dict[str, Any]]
 
     # Market Intelligence output
     skill_gaps: List[Dict[str, Any]]

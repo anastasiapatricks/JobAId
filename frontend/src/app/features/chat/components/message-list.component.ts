@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { ChatMessage } from '../../../core/services/chat.service';
 import { MessageBubbleComponent } from './message-bubble.component';
 import { TypingIndicatorComponent } from './typing-indicator.component';
@@ -11,7 +11,7 @@ import { AutoScrollDirective } from '../../../shared/directives/auto-scroll.dire
   template: `
     <div class="message-list" role="log" aria-label="Chat messages" [jobaidAutoScroll]="true" scrollMode="smart">
       @for (msg of messages; track msg.id) {
-        <jobaid-message-bubble [message]="msg"></jobaid-message-bubble>
+        <jobaid-message-bubble [message]="msg" (suggestionClicked)="suggestionClicked.emit($event)"></jobaid-message-bubble>
       }
       @if (isTyping) {
         <jobaid-typing-indicator [message]="typingMessage"></jobaid-typing-indicator>
@@ -38,4 +38,5 @@ export class MessageListComponent {
   @Input({ required: true }) messages: ChatMessage[] = [];
   @Input() isTyping = false;
   @Input() typingMessage = 'Analyzing...';
+  @Output() suggestionClicked = new EventEmitter<string>();
 }

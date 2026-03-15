@@ -14,6 +14,15 @@ export interface ScoredJob {
   source?: string;
 }
 
+export interface SkillTriageEntry {
+  title: string;
+  company: string;
+  score: number;
+  skills_matched: string[];
+  skills_missing: string[];
+  match_ratio: number;
+}
+
 export interface SkillGap {
   skill: string;
   importance?: string;
@@ -47,6 +56,7 @@ export interface ResultEntry {
   action: string;
   timestamp: string;
   scored_jobs?: ScoredJob[];
+  skill_triage?: SkillTriageEntry[];
   matching_explanation?: string[];
   job_listings?: Record<string, unknown>[];
   skill_gaps?: SkillGap[];

@@ -99,6 +99,36 @@ MOCK_JOBS: List[Dict[str, Any]] = [
         "keywords": ["cybersecurity", "security", "siem", "incident response", "python"],
     },
     {
+        "title": "Malware Analyst",
+        "company": "CrowdStrike",
+        "location": "Singapore",
+        "keywords": ["malware analysis", "reverse engineering", "ida pro", "yara", "python", "x64dbg"],
+    },
+    {
+        "title": "Threat Intelligence Analyst",
+        "company": "Mandiant",
+        "location": "Singapore",
+        "keywords": ["threat intelligence", "malware", "incident response", "python", "yara", "mitre att&ck"],
+    },
+    {
+        "title": "Senior Malware Reverse Engineer",
+        "company": "Palo Alto Networks",
+        "location": "Singapore",
+        "keywords": ["malware", "reverse engineering", "ida pro", "ghidra", "python", "c", "assembly"],
+    },
+    {
+        "title": "Incident Response Consultant",
+        "company": "Accenture Security",
+        "location": "Singapore",
+        "keywords": ["incident response", "digital forensics", "malware analysis", "python", "powershell"],
+    },
+    {
+        "title": "Security Researcher",
+        "company": "Google Project Zero",
+        "location": "Singapore",
+        "keywords": ["vulnerability research", "reverse engineering", "exploit", "fuzzing", "python", "c"],
+    },
+    {
         "title": "Business Analyst",
         "company": "Deloitte",
         "location": "Singapore",

@@ -20,6 +20,7 @@ from models.api_models import (
 )
 from api.dependencies import get_session, update_session, get_graph
 from agents.orchestrator import reset_autonomy, interpret_user_intent
+from guardrails.input_filter import validate_chat_message
 from utils import get_latest_results
 from graph.nodes import (
     resume_parser_node,
@@ -86,6 +87,27 @@ def _run_single_step(session_id: str, action: str, state: dict):
     set_session_id(session_id)
     logger.info(json.dumps({"event": "step_start", "session_id": session_id, "action": action}))
     try:
+        # When user picks a job for cover letter, auto-run market intel first
+        # so they get learning plan + salary + demand alongside the pitch
+        completed_so_far = {r.get("action") for r in state.get("results", [])}
+        if action == "pitching" and "market_intel" not in completed_so_far:
+            selected = state.get("_selected_job") or {}
+            job_title = selected.get("title", state.get("job_query", ""))
+            if job_title:
+                state["job_query"] = job_title
+                state["current_stage"] = "market_intel"
+                update_session(session_id, status="running", state=state)
+                mi_node = _ACTION_NODES["market_intel"]
+                mi_result = mi_node(state)
+                # Append market intel result
+                results_arr = list(state.get("results", []))
+                mi_entry = {"action": "market_intel", "timestamp": _now_iso()}
+                for k, v in mi_result.items():
+                    if k != "messages":
+                        mi_entry[k] = v
+                results_arr.append(mi_entry)
+                state["results"] = results_arr
+
         node_fn = _ACTION_NODES.get(action)
         if not node_fn:
             logger.warning(json.dumps({"event": "step_unknown_action", "session_id": session_id, "action": action}))
@@ -105,6 +127,60 @@ def _run_single_step(session_id: str, action: str, state: dict):
                 entry[k] = v
         results_arr.append(entry)
         state["results"] = results_arr
+
+        # After agent completes, add a follow-up suggestion to conversation
+        msgs = list(state.get("messages") or [])
+        completed_actions = {r.get("action") for r in results_arr}
+        if action == "discovery":
+            n_jobs = len(entry.get("scored_jobs", []))
+            if n_jobs > 0:
+                # Auto-run lightweight skill triage (no LLM, instant)
+                from agents.market_intelligence import skill_triage
+                triage_result = skill_triage(state)
+                entry["skill_triage"] = triage_result.get("skill_triage", [])
+                # Update the entry in results_arr (it's the last one appended)
+                results_arr[-1] = entry
+                state["results"] = results_arr
+
+                # Suggest picking a job — market intel runs automatically when they do
+                triage = triage_result.get("skill_triage", [])
+                if triage:
+                    top = triage[0]
+                    missing_list = top.get("skills_missing", [])[:3]
+                    missing = ", ".join(missing_list) if missing_list else "none identified"
+                    suggestion = (
+                        f"I found {n_jobs} job matches and compared your skills against each role. "
+                        f"Your top match is **{top['title']}** at **{top['company']}**"
+                        f"{f' (gaps: {missing})' if missing_list else ''}. "
+                        "Which role interests you?"
+                    )
+                else:
+                    suggestion = (
+                        f"I found {n_jobs} job matches! Which one interests you?"
+                    )
+
+                # Build clickable job suggestion buttons from top results
+                scored = entry.get("scored_jobs", [])
+                job_suggestions = []
+                for j in scored[:5]:
+                    title = j.get("title", "")
+                    company = j.get("company", "")
+                    if title and company:
+                        job_suggestions.append(f"I'm interested in {title} at {company}")
+
+                suggestion_msg = {
+                    "role": "assistant",
+                    "content": suggestion,
+                    "suggestions": job_suggestions,
+                }
+                msgs.append(suggestion_msg)
+        elif action == "pitching":
+            msgs.append({"role": "assistant", "content": (
+                "Your cover letter is ready! You can also ask me to search for "
+                "more jobs, pick another role, or get a session summary."
+            )})
+        state["messages"] = msgs
+
         update_session(session_id, status="awaiting_input", state=state, result=state)
         logger.info(json.dumps({"event": "step_complete", "session_id": session_id, "action": action}))
     except Exception as exc:
@@ -196,6 +272,21 @@ async def step(session_id: str, req: StepRequest):
 
     state = session.get("state") or session.get("result") or {}
 
+    # Content safety check before any processing
+    safe, safety_msg = validate_chat_message(req.message)
+    if not safe:
+        return StepResponse(
+            session_id=session_id,
+            status="awaiting_input",
+            response_text=safety_msg,
+            action="chitchat",
+            completed_stages=_get_completed_stages(state)
+        )
+
+    # Persist user message to state so the router has conversation history
+    msgs = list(state.get("messages") or [])
+    msgs.append({"role": "user", "content": req.message})
+    state["messages"] = msgs
     logger.info(json.dumps({
         "event": "step_request",
         "session_id": session_id,
@@ -208,6 +299,11 @@ async def step(session_id: str, req: StepRequest):
     response_text = intent.get("response_text", "")
     logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
     parameters = intent.get("parameters") or {}
+
+    # Persist assistant response to state for future context
+    if response_text:
+        state["messages"].append({"role": "assistant", "content": response_text})
+    update_session(session_id, state=state)
 
     if action == "chitchat":
         return StepResponse(
@@ -235,6 +331,13 @@ async def step(session_id: str, req: StepRequest):
                 scored_jobs.insert(0, target_job)
         # Store reordered scored_jobs at top level so the agent can read it
         state["scored_jobs"] = scored_jobs
+
+        # Auto-set job_query for market intel based on selected job
+        if scored_jobs:
+            target = scored_jobs[0]
+            state["_selected_job"] = target
+            if not state.get("job_query") or state["job_query"] == "":
+                state["job_query"] = target.get("title", "")
 
     # Set running and launch agent in background thread
     state["last_action"] = action

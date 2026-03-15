@@ -3,7 +3,7 @@
 from .orchestrator import determine_next_stage, handle_stage_error
 from .resume_parser import resume_parser, load_resume_from_file
 from .job_discovery import job_discovery
-from .market_intelligence import market_intelligence
+from .market_intelligence import market_intelligence, skill_triage
 from .pitch_generator import pitch_generator
 from .summarizer import summarizer
 
@@ -14,6 +14,7 @@ __all__ = [
     "load_resume_from_file",
     "job_discovery",
     "market_intelligence",
+    "skill_triage",
     "pitch_generator",
     "summarizer",
 ]

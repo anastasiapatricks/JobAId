@@ -1,6 +1,7 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
 import { ChatMessage } from '../../../core/services/chat.service';
 import { ResumePreviewComponent } from '../../resume/resume-preview.component';
 import { PipelineProgressComponent } from '../../pipeline/pipeline-progress.component';
@@ -10,7 +11,7 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
 @Component({
   selector: 'jobaid-message-bubble',
   standalone: true,
-  imports: [MatCardModule, MatIconModule, ResumePreviewComponent, PipelineProgressComponent, ResultsContainerComponent],
+  imports: [MatCardModule, MatIconModule, MatButtonModule, ResumePreviewComponent, PipelineProgressComponent, ResultsContainerComponent],
   template: `
     <div class="message" [class.user]="message.sender === 'user'" [class.system]="message.sender === 'system'">
       @if (message.sender === 'system') {
@@ -44,6 +45,16 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
               }
               @case ('text') {
                 <p class="text-content">{{ message.text }}</p>
+                @if (message.suggestions?.length) {
+                  <div class="suggestion-chips">
+                    @for (suggestion of message.suggestions; track suggestion) {
+                      <button mat-stroked-button class="suggestion-chip" (click)="suggestionClicked.emit(suggestion)">
+                        <mat-icon>search</mat-icon>
+                        {{ suggestion }}
+                      </button>
+                    }
+                  </div>
+                }
               }
               @case ('stageUpdate') {
                 @if (message.stageStatus) {
@@ -147,6 +158,24 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       flex-shrink: 0;
       color: var(--mat-sys-primary);
     }
+    .suggestion-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .suggestion-chip {
+      font-size: 0.85rem;
+      border-radius: 20px;
+      text-transform: none;
+      letter-spacing: normal;
+      mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        margin-right: 4px;
+      }
+    }
     .error-content {
       display: flex;
       gap: 8px;
@@ -159,6 +188,7 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
 })
 export class MessageBubbleComponent {
   @Input({ required: true }) message!: ChatMessage;
+  @Output() suggestionClicked = new EventEmitter<string>();
 
   protected readonly stages = PIPELINE_DISPLAY_STAGES;
 

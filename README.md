@@ -431,12 +431,14 @@ uv run pytest tests/ -v
 uv run pytest tests/test_input_filter.py -v
 ```
 
-### Test Suite (92 tests)
+### Test Suite (188 tests)
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
-| `test_input_filter.py` | 19 | Prompt injection detection (all 7 patterns), input length limits, spotlight wrapping, adversarial inputs |
-| `test_output_filter.py` | 14 | Resume/job/pitch output validation, grounding score calculation |
+| `test_input_filter.py` | 47 | Prompt injection (7 patterns), input length limits, spotlight wrapping, adversarial inputs, **content safety (17 harmful blocked, 4 chat blocked, 7 legitimate pass)** |
+| `test_market_intelligence.py` | 55 | Output validation (14), JSON parsing (6), skill extraction (7), salary lookup (5), XAI explainability (6), hallucination guard (6), agent integration with mocked LLM (6), AI security (5) |
+| `test_skill_triage.py` | 14 | Skill matching, case insensitivity, edge cases, no-LLM verification, message format, top-N limiting, deduplication |
+| `test_output_filter.py` | 14 | Resume/job/pitch/market-intel output validation, grounding score |
 | `test_bounded_autonomy.py` | 14 | Iteration limits, per-stage retry limits, LLM call limits, reset |
 | `test_pii_sanitizer.py` | 14 | PII stripping (name, email, phone), gender indicator removal, text sanitization |
 | `test_health.py` | 5 | Health endpoint: status, version, uptime, system checks |
@@ -444,16 +446,105 @@ uv run pytest tests/test_input_filter.py -v
 
 ### AI Security Tests
 
-The `test_input_filter.py` file specifically tests prompt injection defense against all 7 detection patterns:
-- `ignore previous/above/prior instructions`
-- `you are now`
-- `system:` prefix
-- `<system>` tags
-- `ADMIN MODE`
-- `jailbreak`
-- `DAN mode`
+**Prompt injection defense** (`test_input_filter.py`) tests all 7 detection patterns:
+- `ignore previous/above/prior instructions`, `you are now`, `system:` prefix, `<system>` tags, `ADMIN MODE`, `jailbreak`, `DAN mode`
+- Also tests adversarial bypass attempts (case variations, extra whitespace, mixed case)
+- Verifies legitimate technical resumes containing words like "system" or "admin" pass
 
-Also tests adversarial bypass attempts (case variations, extra whitespace, mixed case) and verifies that legitimate technical resumes containing words like "system" or "admin" pass validation.
+**Content safety** (`test_input_filter.py`) blocks harmful/illegal job requests:
+- Violence (hitman, robbery, kidnapping, terrorism, arson)
+- Crime (drug trafficking, human trafficking, extortion)
+- Fraud (money laundering, identity theft, pyramid schemes)
+- Exploitation (child exploitation, forced labour)
+- Illegal hacking (hack accounts, steal passwords)
+- Verified: legitimate security jobs (pentesting, forensics, IR) pass through
+
+**Market Intelligence security** (`test_market_intelligence.py`) tests prompt injection via job queries and verifies the agent degrades gracefully under adversarial conditions.
+
+## Feature-Agent Branch — Enhancements
+
+The `feature-agent` branch adds 2,800+ lines across 27 files, focusing on the Market Intelligence Agent and UX improvements. This section describes what was added and why.
+
+### 1. Market Intelligence Agent Hardening
+
+The Market Intelligence agent originally had no tests or output validation—the only agent without guardrails. The project proposal required output validation, explainability, and test coverage.
+
+**What was added:**
+- **Output validation** (`validate_market_intel_output()` in `guardrails/output_filter.py`) — checks skill_gaps structure, importance values, salary ranges, and field types
+- **Explainability** (`_build_skill_gap_explanations()`) — for each skill gap, traces which jobs require it and whether the candidate has it. Example: *"'Kubernetes' is required by 2 of your top job matches but is not in your current profile."*
+- **Hallucination guard** (`_verify_sources()`) — verifies course recommendations against Tavily and ChromaDB source data. Flags untraced courses with `source_verified: true/false` and a `grounding_score`
+- **Prompt versioning** — logs `MARKET_INTELLIGENCE_PROMPT_VERSION` with every call for traceability and rollback
+- **55 tests** covering validation, explainability, hallucination checks, and agent integration
+
+### 2. Skill Triage — Instant Skill-Gap Snapshot
+
+Users previously saw generic "want market analysis?" prompts after job search. This feature shows relevant skills immediately, without an LLM call.
+
+**What was added:**
+- **`skill_triage()` function** — Python comparison of candidate skills (from resume + extracted terms) against job keywords. No LLM needed
+- **Auto-triggered** after job discovery
+- **Frontend display** — matched skills as green chips, missing skills as amber, shown on each job card
+- **319-skill vocabulary** spanning tech, security, finance, marketing, design, PM, HR, healthcare, engineering, legal, and data roles
+- **14 tests** for matching, case handling, edge cases, and LLM independence
+
+### 3. Conversational Context & Intent Routing
+
+Previously, users answering "yes" to a suggestion would get "how can I help you?" The orchestrator had no conversation memory.
+
+**What was added:**
+- Orchestrator now includes the last 6 messages when routing user intent to agents
+- `/step` endpoint stores user and assistant messages in session state
+- JSON format reminder keeps LLM output structured (not plain text)
+- Debugging revealed three layers: read history → write history → enforce JSON
+
+### 4. Content Safety Guardrails
+
+Job search should block illegal queries (hitman, drug trafficking) while permitting legitimate security work.
+
+**What was added:**
+- 15 regex patterns for violence, crime, fraud, exploitation, and illegal hacking
+- `validate_chat_message()` runs before LLM processing (saves API costs)
+- Integrated into `/step` endpoint
+- Tests verify 17 harmful cases blocked, 4 chat cases blocked, 7 security job requests allowed
+
+### 5. Smart Job Discovery
+
+Adzuna returns generic results for specialized queries. Previous scoring was too lenient (sales roles scored 75% for incident response candidates).
+
+**What was added:**
+- **Stricter scoring** — role match is 50% of final score; wrong-function jobs (sales, DevOps, support) score below 30
+- **Augmented search** — adds candidate domain context (from resume summary) to broaden Adzuna results
+- **Relevance-ranked fallback** — mock jobs sorted by keyword overlap instead of list order
+- **90-day date filter** — `max_days_old=90` on Adzuna API, results sorted by recency
+- **Keyword extraction** — applies 319-skill vocabulary to Adzuna descriptions (since they return no keywords)
+- **5 security mock jobs** (malware analyst, threat intel, IR consultant, reverse engineer, security researcher)
+
+### 6. Auto-Run Market Intel When User Picks a Job
+
+Users found "market analysis" as a separate step unnatural and wanted it included with job results.
+
+**What was added:**
+- Market intelligence auto-runs when user shows interest in a job (e.g., for a cover letter)
+- Frontend displays skill gaps, learning plan, salary, and outlook alongside the cover letter
+- Post-discovery guidance directs users to pick a job instead of asking about "market analysis"
+- Actual flow: Resume → Jobs + Triage → pick a job → Learning plan + salary + cover letter
+
+### 7. Sourced Seed Data (RAG & Salary)
+
+Original seed data lacked sources. Documentation requires data provenance.
+
+**What was added:**
+- **Salary data** — 60 entries across 41 roles from MOM 2024 Occupational Wages and Mavenside Singapore Salary Guide 2025. Each entry has a `source` field
+- **Course data** — 28 entries from SANS, NUS-ISS, OffSec, AWS, Coursera, SkillsFuture SCTP. 13 qualify for SkillsFuture funding
+- **Industry trends** — 18 entries from IMDA, CSA, MOM, ISC2, ITEL, Reeracoen. Singapore-specific 2025/2026 data with citations
+- **Seniority-matched recommendations** — prompt tells LLM to match course level to candidate experience (no beginner courses for 5-year analysts)
+
+### 8. UX Improvements
+
+**What was added:**
+- **Search suggestion buttons** — after resume parsing, 5 clickable job search suggestions drawn from candidate background and domain
+- **Clear next steps** — bot guides users toward relevant actions instead of describing features
+- **Experience threshold fix** — 5+ years now maps to "senior" salary tier (previously 7+)
 
 ## CI/CD Pipeline
 
