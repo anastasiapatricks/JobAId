@@ -17,7 +17,7 @@ logging.getLogger("jobaid").setLevel(logging.INFO)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.middleware import RequestLoggingMiddleware
-from api.routes import health, sessions, pipeline, resume
+from api.routes import health, sessions, pipeline, resume, telemetry
 
 
 def create_app() -> FastAPI:
@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(sessions.router)
     app.include_router(pipeline.router)
     app.include_router(resume.router)
+    app.include_router(telemetry.router)
 
     return app
 

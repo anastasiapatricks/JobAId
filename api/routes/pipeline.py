@@ -1,10 +1,14 @@
 """Pipeline execution endpoints — run, status, approve, results, step."""
 
+import json
+import logging
 from typing import List
 
 import threading
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+
+logger = logging.getLogger("jobaid.api")
 from models.api_models import (
     PipelineRunRequest,
     PipelineStatusResponse,
@@ -79,6 +83,9 @@ def _now_iso() -> str:
 
 def _run_single_step(session_id: str, action: str, state: dict):
     """Run a single agent node in a background thread, then set status back to awaiting_input."""
+    from utils.llm_logger import set_session_id
+    set_session_id(session_id)
+    logger.info(json.dumps({"event": "step_start", "session_id": session_id, "action": action}))
     try:
         # When user picks a job for cover letter, auto-run market intel first
         # so they get learning plan + salary + demand alongside the pitch
@@ -103,6 +110,7 @@ def _run_single_step(session_id: str, action: str, state: dict):
 
         node_fn = _ACTION_NODES.get(action)
         if not node_fn:
+            logger.warning(json.dumps({"event": "step_unknown_action", "session_id": session_id, "action": action}))
             update_session(session_id, status="awaiting_input")
             return
 
@@ -174,7 +182,9 @@ def _run_single_step(session_id: str, action: str, state: dict):
         state["messages"] = msgs
 
         update_session(session_id, status="awaiting_input", state=state, result=state)
+        logger.info(json.dumps({"event": "step_complete", "session_id": session_id, "action": action}))
     except Exception as exc:
+        logger.error(json.dumps({"event": "step_error", "session_id": session_id, "action": action, "error": str(exc)[:500]}))
         errors = list(state.get("errors") or [])
         errors.append({"stage": action, "error": str(exc)})
         state["errors"] = errors
@@ -183,6 +193,12 @@ def _run_single_step(session_id: str, action: str, state: dict):
 
 @router.post("/{session_id}/run")
 async def run_pipeline(session_id: str, req: PipelineRunRequest, background_tasks: BackgroundTasks):
+    logger.info(json.dumps({
+        "event": "run_pipeline",
+        "session_id": session_id,
+        "has_resume": bool(req.resume_text),
+        "job_query": (req.job_query or "")[:100],
+    }))
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -212,6 +228,9 @@ async def run_pipeline(session_id: str, req: PipelineRunRequest, background_task
     update_session(session_id, status="running", state=initial_state)
 
     def _parse_and_await():
+        from utils.llm_logger import set_session_id
+        set_session_id(session_id)
+        logger.info(json.dumps({"event": "parse_start", "session_id": session_id}))
         try:
             initial_state["current_stage"] = "parsing"
             update_session(session_id, status="running", state=initial_state)
@@ -231,7 +250,9 @@ async def run_pipeline(session_id: str, req: PipelineRunRequest, background_task
             if result.get("resume_debiased"):
                 initial_state["resume_debiased"] = result["resume_debiased"]
             update_session(session_id, status="awaiting_input", state=initial_state, result=initial_state)
+            logger.info(json.dumps({"event": "parse_complete", "session_id": session_id}))
         except Exception as exc:
+            logger.error(json.dumps({"event": "parse_error", "session_id": session_id, "error": str(exc)[:500]}))
             update_session(session_id, status="error", state={"error": str(exc)})
 
     background_tasks.add_task(_parse_and_await)
@@ -266,11 +287,17 @@ async def step(session_id: str, req: StepRequest):
     msgs = list(state.get("messages") or [])
     msgs.append({"role": "user", "content": req.message})
     state["messages"] = msgs
+    logger.info(json.dumps({
+        "event": "step_request",
+        "session_id": session_id,
+        "message": req.message[:200],
+    }))
 
     # Let the orchestrator LLM interpret the user's intent
     intent = interpret_user_intent(req.message, state)
     action = intent.get("action", "chitchat")
     response_text = intent.get("response_text", "")
+    logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
     parameters = intent.get("parameters") or {}
 
     # Persist assistant response to state for future context
