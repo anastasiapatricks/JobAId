@@ -137,9 +137,10 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     this.typingMessage = 'Analyzing...';
     this.pipelineProgress.set(0);
 
-    // Health check
     this.api.healthCheck().subscribe({
-      error: () => this.chat.addError('Unable to connect to the backend. Please ensure the server is running on localhost:8000.'),
+      error: () => this.chat.addError(
+        'Unable to connect to the backend. Please ensure the server is running on localhost:8000.'
+      ),
     });
   }
 
@@ -184,9 +185,9 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     this.resumeText = '';
     this.session.clear();
   }
-  async onResumePasted(text: string): Promise<void> {
-    if (this.state !== 'awaiting_resume') return;
 
+  async onResumePasted(text: string): Promise<void> {
+    this.resetForNewResume();
     this.resumeText = text;
     this.chat.addResumeMessage(text, 'Pasted text');
     this.startParsing();
@@ -196,45 +197,251 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     const suggestions: string[] = [];
     const seen = new Set<string>();
 
-    // Extract from experience titles
+    const addSuggestion = (text: string) => {
+      const clean = text.trim();
+      const key = clean.toLowerCase();
+      if (clean && !seen.has(key)) {
+        seen.add(key);
+        suggestions.push(clean);
+      }
+    };
+
+    // 1) Experience titles first — most relevant
     const experience = resumeInfo['experience'] || [];
     for (const exp of experience) {
-      const title = (exp['title'] || '').toLowerCase();
-      if (title && !seen.has(title)) {
-        seen.add(title);
-        // Clean up and capitalize
-        const clean = title.replace(/\b(senior|junior|lead|principal|staff|deputy|intern)\b/gi, '').trim();
-        if (clean.length > 3) {
-          suggestions.push(`Find ${clean} jobs`);
-        }
+      const rawTitle = (exp['title'] || '').toLowerCase().trim();
+      if (!rawTitle) continue;
+
+      const cleanTitle = rawTitle
+        .replace(/\b(senior|junior|lead|principal|staff|assistant|intern|deputy)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (cleanTitle.length > 3) {
+        addSuggestion(`Find ${cleanTitle} roles in Singapore`);
+      }
+
+      if (suggestions.length >= 5) {
+        return suggestions.slice(0, 5);
       }
     }
 
-    // Extract from professional summary keywords
+    // 2) Skills to jobs — second most relevant
+    const technicalSkills = (resumeInfo['skills']?.['technical'] || [])
+      .map((s: string) => s.toLowerCase().trim());
+
+    const skillToJobMap: Record<string, string> = {
+      java: 'Find Java developer roles in Singapore',
+      python: 'Find Python developer roles in Singapore',
+      javascript: 'Find JavaScript developer roles in Singapore',
+      typescript: 'Find TypeScript developer roles in Singapore',
+      react: 'Find React developer roles in Singapore',
+      angular: 'Find Angular developer roles in Singapore',
+      'spring boot': 'Find backend developer roles in Singapore',
+      'node.js': 'Find Node.js developer roles in Singapore',
+      nodejs: 'Find Node.js developer roles in Singapore',
+      aws: 'Find cloud engineer roles in Singapore',
+      azure: 'Find cloud engineer roles in Singapore',
+      gcp: 'Find cloud engineer roles in Singapore',
+      docker: 'Find DevOps engineer roles in Singapore',
+      kubernetes: 'Find platform engineer roles in Singapore',
+      terraform: 'Find infrastructure engineer roles in Singapore',
+      sql: 'Find data analyst roles in Singapore',
+      excel: 'Find business analyst roles in Singapore',
+      tableau: 'Find BI analyst roles in Singapore',
+      'power bi': 'Find BI analyst roles in Singapore',
+      powerbi: 'Find BI analyst roles in Singapore',
+      spark: 'Find data engineer roles in Singapore',
+      airflow: 'Find data engineer roles in Singapore',
+      kafka: 'Find data engineer roles in Singapore',
+      tensorflow: 'Find machine learning engineer roles in Singapore',
+      pytorch: 'Find machine learning engineer roles in Singapore',
+      flutter: 'Find mobile developer roles in Singapore',
+      dart: 'Find Flutter developer roles in Singapore',
+      marketing: 'Find marketing roles in Singapore',
+      seo: 'Find digital marketing roles in Singapore',
+      accounting: 'Find accounting roles in Singapore',
+      finance: 'Find finance roles in Singapore',
+      recruiting: 'Find recruiter roles in Singapore',
+      recruitment: 'Find recruiter roles in Singapore',
+      hr: 'Find HR roles in Singapore',
+      'customer service': 'Find customer service roles in Singapore',
+      sales: 'Find sales roles in Singapore',
+      logistics: 'Find logistics roles in Singapore',
+      procurement: 'Find procurement roles in Singapore',
+      nursing: 'Find nursing roles in Singapore',
+      teaching: 'Find teaching roles in Singapore',
+      training: 'Find trainer roles in Singapore',
+      photoshop: 'Find graphic designer roles in Singapore',
+      illustrator: 'Find graphic designer roles in Singapore',
+      autocad: 'Find engineering roles in Singapore',
+      jira: 'Find project coordinator roles in Singapore',
+      postman: 'Find QA roles in Singapore',
+    };
+
+    for (const skill of technicalSkills) {
+      const mapped = skillToJobMap[skill];
+      if (mapped) {
+        addSuggestion(mapped);
+      }
+
+      if (suggestions.length >= 5) {
+        return suggestions.slice(0, 5);
+      }
+    }
+
+    // 3) Summary domain keywords — broader matching
     const summary = (resumeInfo['professional_summary'] || '').toLowerCase();
-    const domainKeywords = [
-      'malware analysis', 'incident response', 'digital forensics', 'threat intelligence',
-      'penetration testing', 'cybersecurity', 'data science', 'machine learning',
-      'software engineering', 'backend', 'frontend', 'full stack', 'devops',
-      'cloud architecture', 'data engineering', 'product management', 'project management',
-      'business analysis', 'financial analysis', 'marketing', 'ux design', 'ui design',
-    ];
-    for (const kw of domainKeywords) {
-      if (summary.includes(kw) && !seen.has(kw)) {
-        seen.add(kw);
-        suggestions.push(`Find ${kw} jobs`);
+
+    const domainKeywordMap: Record<string, string> = {
+      // Cybersecurity / IT
+      'malware analysis': 'Find malware analyst roles in Singapore',
+      'incident response': 'Find incident response roles in Singapore',
+      'digital forensics': 'Find digital forensics roles in Singapore',
+      'threat intelligence': 'Find threat intelligence roles in Singapore',
+      'penetration testing': 'Find penetration tester roles in Singapore',
+      'cybersecurity': 'Find cybersecurity roles in Singapore',
+      'security operations': 'Find security operations roles in Singapore',
+      'security analyst': 'Find security analyst roles in Singapore',
+      'cloud security': 'Find cloud security roles in Singapore',
+      'network security': 'Find network security roles in Singapore',
+      'technical support': 'Find technical support roles in Singapore',
+      helpdesk: 'Find helpdesk roles in Singapore',
+
+      // Software / Data / AI
+      'software engineering': 'Find software engineer roles in Singapore',
+      'software development': 'Find software developer roles in Singapore',
+      backend: 'Find backend developer roles in Singapore',
+      frontend: 'Find frontend developer roles in Singapore',
+      'full stack': 'Find full stack developer roles in Singapore',
+      'full-stack': 'Find full stack developer roles in Singapore',
+      'web development': 'Find web developer roles in Singapore',
+      'mobile development': 'Find mobile developer roles in Singapore',
+      'data science': 'Find data scientist roles in Singapore',
+      'data analysis': 'Find data analyst roles in Singapore',
+      'data analytics': 'Find data analyst roles in Singapore',
+      'business intelligence': 'Find business intelligence roles in Singapore',
+      'data engineering': 'Find data engineer roles in Singapore',
+      'machine learning': 'Find machine learning engineer roles in Singapore',
+      'artificial intelligence': 'Find AI roles in Singapore',
+      devops: 'Find DevOps engineer roles in Singapore',
+      'cloud architecture': 'Find cloud architect roles in Singapore',
+      'cloud engineering': 'Find cloud engineer roles in Singapore',
+      'platform engineering': 'Find platform engineer roles in Singapore',
+      'site reliability engineering': 'Find site reliability engineer roles in Singapore',
+      sre: 'Find site reliability engineer roles in Singapore',
+
+      // Product / Project / Business
+      'product management': 'Find product manager roles in Singapore',
+      'project management': 'Find project manager roles in Singapore',
+      'program management': 'Find program manager roles in Singapore',
+      'scrum master': 'Find Scrum Master roles in Singapore',
+      'business analysis': 'Find business analyst roles in Singapore',
+      'business analyst': 'Find business analyst roles in Singapore',
+      'operations management': 'Find operations roles in Singapore',
+      strategy: 'Find strategy roles in Singapore',
+      consulting: 'Find consultant roles in Singapore',
+      'customer success': 'Find customer success roles in Singapore',
+      'account management': 'Find account manager roles in Singapore',
+      'sales operations': 'Find sales operations roles in Singapore',
+
+      // Finance / Accounting / Banking
+      'financial analysis': 'Find financial analyst roles in Singapore',
+      finance: 'Find finance roles in Singapore',
+      accounting: 'Find accounting roles in Singapore',
+      audit: 'Find audit roles in Singapore',
+      taxation: 'Find tax roles in Singapore',
+      'investment analysis': 'Find investment analyst roles in Singapore',
+      'risk management': 'Find risk management roles in Singapore',
+      compliance: 'Find compliance roles in Singapore',
+      'banking operations': 'Find banking operations roles in Singapore',
+      'insurance operations': 'Find insurance operations roles in Singapore',
+
+      // Marketing / Communications
+      marketing: 'Find marketing roles in Singapore',
+      'digital marketing': 'Find digital marketing roles in Singapore',
+      'brand management': 'Find brand manager roles in Singapore',
+      'content marketing': 'Find content marketing roles in Singapore',
+      'social media marketing': 'Find social media marketing roles in Singapore',
+      communications: 'Find communications roles in Singapore',
+      'public relations': 'Find public relations roles in Singapore',
+      seo: 'Find SEO roles in Singapore',
+      sem: 'Find SEM roles in Singapore',
+      'market research': 'Find market research roles in Singapore',
+
+      // HR / Admin / Legal
+      'human resources': 'Find HR roles in Singapore',
+      'talent acquisition': 'Find talent acquisition roles in Singapore',
+      recruitment: 'Find recruiter roles in Singapore',
+      'learning and development': 'Find learning and development roles in Singapore',
+      'office administration': 'Find office administration roles in Singapore',
+      'executive assistant': 'Find executive assistant roles in Singapore',
+      'legal support': 'Find legal support roles in Singapore',
+      'contract management': 'Find contract management roles in Singapore',
+
+      // Design / Creative
+      'ux design': 'Find UX designer roles in Singapore',
+      'ui design': 'Find UI designer roles in Singapore',
+      'graphic design': 'Find graphic designer roles in Singapore',
+      'product design': 'Find product designer roles in Singapore',
+      'content creation': 'Find content creator roles in Singapore',
+      'video editing': 'Find video editor roles in Singapore',
+      'instructional design': 'Find instructional designer roles in Singapore',
+
+      // Supply chain / Logistics / Operations
+      'supply chain': 'Find supply chain roles in Singapore',
+      procurement: 'Find procurement roles in Singapore',
+      logistics: 'Find logistics roles in Singapore',
+      'inventory management': 'Find inventory management roles in Singapore',
+      'warehouse operations': 'Find warehouse operations roles in Singapore',
+      operations: 'Find operations roles in Singapore',
+      'quality assurance': 'Find quality assurance roles in Singapore',
+
+      // Healthcare / Education / Public service
+      nursing: 'Find nursing roles in Singapore',
+      'patient care': 'Find patient care roles in Singapore',
+      pharmacy: 'Find pharmacy roles in Singapore',
+      'healthcare administration': 'Find healthcare administration roles in Singapore',
+      teaching: 'Find teaching roles in Singapore',
+      'curriculum development': 'Find curriculum development roles in Singapore',
+      training: 'Find trainer roles in Singapore',
+      'public policy': 'Find public policy roles in Singapore',
+      'social work': 'Find social work roles in Singapore',
+
+      // Hospitality / Retail / Service
+      hospitality: 'Find hospitality roles in Singapore',
+      'customer service': 'Find customer service roles in Singapore',
+      'retail operations': 'Find retail operations roles in Singapore',
+      'restaurant management': 'Find restaurant manager roles in Singapore',
+      'event management': 'Find event management roles in Singapore',
+      'travel operations': 'Find travel operations roles in Singapore',
+
+      // Engineering / Technical non-software
+      'mechanical engineering': 'Find mechanical engineer roles in Singapore',
+      'electrical engineering': 'Find electrical engineer roles in Singapore',
+      'civil engineering': 'Find civil engineer roles in Singapore',
+      'industrial engineering': 'Find industrial engineer roles in Singapore',
+      manufacturing: 'Find manufacturing roles in Singapore',
+      'process engineering': 'Find process engineer roles in Singapore',
+      'quality control': 'Find quality control roles in Singapore',
+    };
+
+    for (const keyword of Object.keys(domainKeywordMap)) {
+      if (summary.includes(keyword)) {
+        addSuggestion(domainKeywordMap[keyword]);
+      }
+
+      if (suggestions.length >= 5) {
+        return suggestions.slice(0, 5);
       }
     }
 
-    // Limit to 5 and ensure at least one generic fallback
-    const result = suggestions.slice(0, 5);
-    if (result.length < 3) {
-      const skills = (resumeInfo['skills']?.['technical'] || []).slice(0, 2);
-      if (skills.length > 0) {
-        result.push(`Find ${skills.join(' and ')} jobs`);
-      }
-    }
-    return result.slice(0, 5);
+    // 4) Smart fallback
+    addSuggestion('Find jobs matching my resume in Singapore');
+    addSuggestion('Find mid-career roles in Singapore');
+    addSuggestion('Find entry-level roles in Singapore');
+
+    return suggestions.slice(0, 5);
   }
 
   onSuggestionClicked(suggestion: string): void {
@@ -250,7 +457,6 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     }
 
     if (this.state === 'results') {
-      // Allow continuing conversation from results state
       if (this.resumeText) {
         this.state = 'awaiting_input';
         await this.sendConversationalStep(text);
@@ -311,34 +517,51 @@ export class ChatPageComponent implements OnInit, OnDestroy {
             this.stopProgressTrickle();
             this.pipelineProgress.set(100);
 
-            // Use completed stages from backend if available, fallback to manual calculation
-            const completed = results.completed_stages || results.results.map(r => r.action);
-            if (results.resume_info && !completed.includes('parsing')) completed.push('parsing');
+            const completed = results.completed_stages || results.results.map((r: any) => r.action);
+            if (results.resume_info && !completed.includes('parsing')) {
+              completed.push('parsing');
+            }
 
-            // Build a greeting from parsed resume data
             const resumeInfo = results.resume_info as Record<string, any> | undefined;
+
             if (resumeInfo) {
               const name = resumeInfo['contact_info']?.['name'] || 'there';
               const skills = (resumeInfo['skills']?.['technical'] || []).slice(0, 5);
+
               let greeting = `Great, I've parsed your resume, ${name}!`;
               if (skills.length > 0) {
                 greeting += ` I can see you have experience with ${skills.join(', ')}.`;
               }
-              greeting += '\n\nHere are some job searches based on your profile — click one or type your own (e.g., "Find cloud security jobs in Singapore"):';
 
-              // Generate job search suggestions from resume data
-              const suggestions = this.generateJobSuggestions(resumeInfo);
-              const msg: any = { type: 'text', sender: 'system', text: greeting, completedStages: completed, suggestions };
+              greeting +=
+                '\n\nWhat would you like to do? You can use a quick action, select a suggested role, or enter your own search in the chat box.';
+
+              const actionSuggestions = [
+                'Find jobs for my profile',
+                'Analyze market trends for my profile',
+                'Write a cover letter for a matched job',
+                'Summarize my session results',
+              ];
+
+              const jobSuggestions = this.generateJobSuggestions(resumeInfo);
+
+              const msg: any = {
+                type: 'text',
+                sender: 'system',
+                text: greeting,
+                completedStages: completed,
+                suggestions: [...actionSuggestions, ...jobSuggestions].slice(0, 9),
+              };
+
               this.chat['addMessage'](msg);
             } else {
               this.chat.addSystemText(
-                'Resume parsed! What kind of jobs are you looking for?',
+                'Resume parsed! What would you like to do next?',
                 completed
               );
             }
           },
           onComplete: (results) => {
-            // Shouldn't happen with the new /run, but handle gracefully
             this.chat.setTyping(false);
             this.chat.addResults(results, results.last_action || '');
             this.state = 'results';
@@ -363,8 +586,9 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   private async sendConversationalStep(text: string): Promise<void> {
     this.chat.setTyping(true);
     this.typingMessage = 'Thinking...';
-    this.state = 'running'; // Ensure progress bar shows
+    this.state = 'running';
     this.startProgressTrickle(0, 90);
+
     let lastAction = '';
     let completedStages: string[] = [];
 
@@ -376,7 +600,6 @@ export class ChatPageComponent implements OnInit, OnDestroy {
           lastAction = stepResponse.action;
           completedStages = stepResponse.completed_stages;
 
-          // Show the bot's response text
           if (stepResponse.response_text) {
             this.chat.addSystemText(stepResponse.response_text, completedStages);
           }
@@ -386,32 +609,29 @@ export class ChatPageComponent implements OnInit, OnDestroy {
             this.state = 'awaiting_input';
             this.stopProgressTrickle();
           }
-          // If an agent is running, typing indicator stays on until poll completes
         },
         onAwaitingInput: (results) => {
           this.chat.setCurrentStage(null);
           this.chat.setTyping(false);
           this.stopProgressTrickle();
           this.pipelineProgress.set(100);
-          // Show the latest result entry filtered by action
-          const action = lastAction || results.last_action || '';
+
+          const action = results.last_action || lastAction || '';
           const finalStages = results.completed_stages || completedStages;
           this.chat.addResults(results, action, finalStages);
 
-          // After discovery, show job pick suggestions from backend messages
           if (action === 'discovery') {
-            const state = (results as any);
-            // Find the latest assistant message with suggestions
-            // (stored by the pipeline after triage runs)
-            const disc = results.results?.filter(r => r.action === 'discovery') || [];
+            const disc = results.results?.filter((r: any) => r.action === 'discovery') || [];
             if (disc.length > 0) {
               const scored = disc[disc.length - 1].scored_jobs || [];
               const jobSuggestions = scored.slice(0, 5).map(
                 (j: any) => `I'm interested in ${j.title} at ${j.company}`
               );
+
               if (jobSuggestions.length > 0) {
                 const msg: any = {
-                  type: 'text', sender: 'system',
+                  type: 'text',
+                  sender: 'system',
                   text: 'Which role interests you? I\'ll show you a learning plan, salary insights, and draft a cover letter.',
                   suggestions: jobSuggestions,
                   completedStages: finalStages,
@@ -442,7 +662,6 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     this.stopProgressTrickle();
     this.pipelineProgress.set(start);
 
-    // Increment progress by 1% every 800ms, up to 'end'
     this.progressInterval = setInterval(() => {
       const current = this.pipelineProgress();
       if (current < end) {
