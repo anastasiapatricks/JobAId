@@ -1,12 +1,14 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Subject, interval, switchMap, takeUntil, tap, catchError, EMPTY, filter } from 'rxjs';
 import { ApiService } from './api.service';
+import { LoggingService } from './logging.service';
 import { PipelineStatusResponse, PipelineRunRequest, StepResponse } from '../models/pipeline.model';
 import { PipelineResults } from '../models/results.model';
 
 @Injectable({ providedIn: 'root' })
 export class PipelineService {
   private readonly api = inject(ApiService);
+  private readonly log = inject(LoggingService);
   private readonly stop$ = new Subject<void>();
 
   readonly pipelineStatus = signal<PipelineStatusResponse | null>(null);
@@ -37,10 +39,13 @@ export class PipelineService {
     this.results.set(null);
     this.isRunning.set(true);
 
+    this.log.info('Pipeline start', { sessionId });
+
     this.api.runPipeline(sessionId, request).subscribe({
       next: () => this.pollStatus(sessionId),
       error: (err) => {
         const msg = err?.error?.detail || 'Failed to start pipeline';
+        this.log.error('Pipeline start failed', { sessionId, error: msg });
         this.error.set(msg);
         this.isRunning.set(false);
         this.onError?.(msg);
@@ -91,6 +96,7 @@ export class PipelineService {
         switchMap(() =>
           this.api.getStatus(sessionId).pipe(
             catchError(() => {
+              this.log.error('Polling connection lost', { sessionId });
               this.error.set('Lost connection to backend');
               this.isRunning.set(false);
               this.stop$.next();
@@ -104,6 +110,7 @@ export class PipelineService {
 
           if (status.current_stage && status.current_stage !== lastStage) {
             lastStage = status.current_stage;
+            this.log.info('Stage transition', { sessionId, stage: status.current_stage });
             this.onStageChange?.(status);
           }
         }),
@@ -120,6 +127,7 @@ export class PipelineService {
 
         if (status.status === 'error') {
           const msg = (status.errors?.[0]?.['message'] as string) || 'Pipeline failed';
+          this.log.error('Pipeline error', { sessionId, error: msg });
           this.error.set(msg);
           this.onError?.(msg);
           return;
@@ -129,6 +137,7 @@ export class PipelineService {
         this.api.getResults(sessionId).subscribe({
           next: (results) => {
             this.results.set(results);
+            this.log.info('Pipeline complete', { sessionId, status: status.status });
             if (status.status === 'complete') {
               this.onComplete?.(results);
             } else {
@@ -136,6 +145,7 @@ export class PipelineService {
             }
           },
           error: () => {
+            this.log.error('Failed to fetch results', { sessionId });
             this.error.set('Failed to fetch results');
             this.onError?.('Failed to fetch results');
           },

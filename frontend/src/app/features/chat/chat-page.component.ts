@@ -5,6 +5,7 @@ import { ChatService } from '../../core/services/chat.service';
 import { SessionService } from '../../core/services/session.service';
 import { PipelineService } from '../../core/services/pipeline.service';
 import { ApiService } from '../../core/services/api.service';
+import { LoggingService } from '../../core/services/logging.service';
 import { MessageListComponent } from './components/message-list.component';
 import { ChatInputComponent } from './components/chat-input.component';
 import { ResumeUploadComponent } from '../resume/resume-upload.component';
@@ -123,6 +124,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   private readonly pipeline = inject(PipelineService);
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly log = inject(LoggingService);
 
   state: ChatState = 'welcome';
   typingMessage = 'Analyzing...';
@@ -152,6 +154,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   async onFileUploaded(file: File): Promise<void> {
     this.resetForNewResume();
 
+    this.log.info('Resume file upload started', { filename: file.name, size: file.size });
     this.chat.setTyping(true);
 
     try {
@@ -159,12 +162,14 @@ export class ChatPageComponent implements OnInit, OnDestroy {
 
       this.api.uploadResume(sessionId, file).subscribe({
         next: (res) => {
+          this.log.info('Resume upload complete', { text_length: res.resume_text.length });
           this.chat.setTyping(false);
           this.resumeText = res.resume_text;
           this.chat.addResumeMessage(res.resume_text, file.name);
           this.startParsing();
         },
         error: (err) => {
+          this.log.error('Resume upload failed', { error: err?.error?.detail });
           this.chat.setTyping(false);
           this.chat.addError(err?.error?.detail || 'Failed to upload resume.\nPlease try again.');
           this.state = 'awaiting_resume';
@@ -465,6 +470,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   }
 
   private async startParsing(): Promise<void> {
+    this.log.info('Parsing started');
     this.state = 'running';
     this.chat.setTyping(true);
     this.pipelineProgress.set(10);
@@ -510,6 +516,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
             }
           },
           onAwaitingInput: (results) => {
+            this.log.info('Parsing complete, awaiting input');
             this.chat.setCurrentStage(null);
             this.chat.setTyping(false);
             this.state = 'awaiting_input';
@@ -568,6 +575,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
             this.session.updateStatus('complete');
           },
           onError: (error) => {
+            this.log.error('Parsing error', { error });
             this.chat.setTyping(false);
             this.chat.addError(`Error parsing resume: ${error}`);
             this.state = 'awaiting_resume';
@@ -584,6 +592,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   }
 
   private async sendConversationalStep(text: string): Promise<void> {
+    this.log.info('Step send', { message: text.slice(0, 200) });
     this.chat.setTyping(true);
     this.typingMessage = 'Thinking...';
     this.state = 'running';
@@ -597,6 +606,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
 
       this.pipeline.sendStep(sessionId, text, {
         onResponse: (stepResponse) => {
+          this.log.info('Step response', { action: stepResponse.action });
           lastAction = stepResponse.action;
           completedStages = stepResponse.completed_stages;
 
@@ -644,6 +654,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
           this.state = 'awaiting_input';
         },
         onError: (error) => {
+          this.log.error('Step error', { error });
           this.chat.setCurrentStage(null);
           this.chat.setTyping(false);
           this.stopProgressTrickle();
