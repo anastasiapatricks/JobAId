@@ -25,33 +25,41 @@ import { MatIconModule } from '@angular/material/icon';
   `,
   styles: `
     .drop-zone {
-      border: 2px dashed rgba(0, 0, 0, 0.2);
-      border-radius: 12px;
-      padding: 32px 24px;
+      border: 2px dashed #93c5fd;
+      border-radius: var(--app-radius-lg);
+      padding: 36px 24px;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s ease;
-      background: rgba(0, 0, 0, 0.02);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      color: white;
+      box-shadow: 0 10px 28px rgba(37, 99, 235, 0.18);
     }
+
     .drop-zone:hover,
     .drop-zone.dragover {
-      border-color: var(--mat-sys-primary);
-      background: rgba(var(--mat-sys-primary), 0.04);
+      border-color: #bfdbfe;
+      transform: translateY(-1px);
+      box-shadow: 0 14px 32px rgba(37, 99, 235, 0.24);
     }
+
     .upload-icon {
       font-size: 48px;
       width: 48px;
       height: 48px;
-      opacity: 0.5;
-      margin-bottom: 8px;
+      color: #bfdbfe;
+      margin-bottom: 10px;
     }
+
     .primary-text {
-      font-weight: 500;
-      margin: 8px 0 4px;
+      font-weight: 700;
+      margin: 8px 0 6px;
+      color: white;
     }
+
     .secondary-text {
-      font-size: 0.85rem;
-      opacity: 0.6;
+      font-size: 0.9rem;
+      color: #dbeafe;
       margin: 0;
     }
   `,
