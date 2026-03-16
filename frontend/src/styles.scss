@@ -1,93 +1,94 @@
 @use '@angular/material' as mat;
 
-$light-theme: mat.define-theme((color: (primary: mat.$violet-palette,
-        tertiary: mat.$cyan-palette,
-      ),
-    ));
+$primary-palette: mat.$azure-palette;
+$tertiary-palette: mat.$blue-palette;
 
+$light-theme: mat.define-theme((
+  color: (
+    theme-type: light,
+    primary: $primary-palette,
+    tertiary: $tertiary-palette,
+  ),
+  density: (
+    scale: 0,
+  )
+));
 
 html {
   @include mat.all-component-themes($light-theme);
   height: 100%;
 }
 
+:root {
+  --app-bg: #ffffff;
+  --app-surface: #ffffff;
+  --app-surface-soft: #f8fafc;
+  --app-border: #e2e8f0;
+
+  --app-text: #1e293b;
+  --app-text-muted: #64748b;
+
+  --app-brand: #2563eb;
+  --app-brand-dark: #1d4ed8;
+  --app-brand-soft: #dbeafe;
+
+  --app-accent-soft: #eff6ff;
+  --app-user-bubble: #dbeafe;
+  --app-system-bubble: #ffffff;
+
+  --app-success-soft: #ecfdf3;
+  --app-success-text: #166534;
+
+  --app-warning-soft: #fff7ed;
+  --app-warning-text: #c2410c;
+
+  --app-error-soft: #fef2f2;
+  --app-error-text: #b91c1c;
+
+  --app-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --app-radius-lg: 20px;
+  --app-radius-md: 14px;
+  --app-radius-sm: 10px;
+}
 
 body {
-  background-color: var(--mat-sys-surface);
-  color: var(--mat-sys-on-surface);
+  background: var(--app-bg);
+  color: var(--app-text);
   font: var(--mat-sys-body-medium);
   margin: 0;
   height: 100%;
-  font-family: Roboto, "Helvetica Neue", sans-serif;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
   overflow: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-// Score color utility classes
-.score-high {
-  color: var(--mat-sys-on-primary-container);
-  background-color: var(--mat-sys-primary-container);
-}
-
-.score-medium {
-  color: var(--mat-sys-on-tertiary-container);
-  background-color: var(--mat-sys-tertiary-container);
-}
-
-.score-low {
-  color: var(--mat-sys-on-error-container);
-  background-color: var(--mat-sys-error-container);
-}
-
-// Importance color classes for chips
-.importance-high {
-  --mat-chip-label-text-color: var(--mat-sys-error);
-  background-color: var(--mat-sys-error-container) !important;
-}
-
-.importance-medium {
-  --mat-chip-label-text-color: var(--mat-sys-on-tertiary-container);
-  background-color: var(--mat-sys-tertiary-container) !important;
-}
-
-.importance-low {
-  --mat-chip-label-text-color: var(--mat-sys-on-primary-container);
-  background-color: var(--mat-sys-primary-container) !important;
-}
-
-// Scrollbar styling
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.35);
-}
-
-// Smooth transitions
-* {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-// Responsive helpers
-@media (max-width: 768px) {
-  .hide-mobile {
-    display: none !important;
-  }
+.score-high {
+  color: var(--app-success-text);
+  background-color: var(--app-success-soft);
 }
 
-@media (min-width: 769px) {
-  .hide-desktop {
-    display: none !important;
-  }
+.score-medium {
+  color: var(--app-warning-text);
+  background-color: var(--app-warning-soft);
+}
+
+.score-low {
+  color: var(--app-error-text);
+  background-color: var(--app-error-soft);
+}
+
+.importance-high {
+  --mat-chip-label-text-color: var(--app-error-text);
+  background-color: var(--app-error-soft) !important;
+}
+
+.importance-medium {
+  --mat-chip-label-text-color: var(--app-warning-text);
+  background-color: var(--app-warning-soft) !important;
+}
+
+.importance-low {
+  --mat-chip-label-text-color: var(--app-success-text);
+  background-color: var(--app-success-soft) !important;
 }

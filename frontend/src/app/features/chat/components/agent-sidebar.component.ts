@@ -20,6 +20,7 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
           <div class="agent-item"
                [class.active]="currentStage() === item.stage"
                [class.completed]="isCompleted(item.stage)">
+            
             <div class="status-indicator">
               @if (isCompleted(item.stage)) {
                 <mat-icon class="check-icon">check_circle</mat-icon>
@@ -27,20 +28,23 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
                 <div class="dot" [class.pulse]="currentStage() === item.stage"></div>
               }
             </div>
+
             <div class="agent-info">
               <span class="agent-label">{{ item.label }}</span>
+
               @if (isCompleted(item.stage) || currentStage() === item.stage) {
                 <span class="agent-status">
-                  {{ isCompleted(item.stage) ? 'Completed' : 'Active' }}
+                  {{ isCompleted(item.stage) ? 'Completed' : 'Running' }}
                 </span>
               }
             </div>
+
           </div>
         }
       </div>
 
       <div class="sidebar-footer">
-        <div class="status-badge" [class.online]="true">
+        <div class="status-badge">
           <div class="pulse-dot"></div>
           System Online
         </div>
@@ -52,9 +56,8 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       display: block;
       width: 280px;
       height: 100%;
-      background: var(--mat-sys-surface-container-low);
-      border-right: 1px solid var(--mat-sys-outline-variant);
-      color: var(--mat-sys-on-surface);
+      background: white;
+      border-right: 1px solid #e5e7eb;
       z-index: 10;
     }
 
@@ -67,17 +70,19 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
 
     .sidebar-header {
       margin-bottom: 32px;
-      h2 {
-        margin: 0;
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: var(--mat-sys-primary);
-      }
-      p {
-        margin: 4px 0 0;
-        font-size: 0.8rem;
-        opacity: 0.7;
-      }
+    }
+
+    .sidebar-header h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #1e3a8a;
+    }
+
+    .sidebar-header p {
+      margin: 4px 0 0;
+      font-size: 0.8rem;
+      opacity: 0.7;
     }
 
     .agent-list {
@@ -93,23 +98,23 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       gap: 12px;
       padding: 12px;
       border-radius: 12px;
-      background: var(--mat-sys-surface-container);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: #f8fafc;
+      transition: all 0.25s ease;
       border: 1px solid transparent;
+    }
 
-      &.active {
-        background: var(--mat-sys-primary-container);
-        color: var(--mat-sys-on-primary-container);
-        border-color: var(--mat-sys-primary);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 
-                    0 0 15px var(--mat-sys-primary-fixed-dim);
-        transform: translateX(4px);
-      }
+    /* ACTIVE AGENT (RUNNING) */
+    .agent-item.active {
+      background: rgba(77,169,255,0.12);
+      border: 1px solid #4DA9FF;
+      box-shadow: 0 0 10px rgba(77,169,255,0.25);
+      transform: translateX(4px);
+    }
 
-      &.completed {
-        background: var(--mat-sys-surface-bright);
-        opacity: 0.9;
-      }
+    /* COMPLETED AGENT */
+    .agent-item.completed {
+      background: #f1f5f9;
+      opacity: 0.9;
     }
 
     .status-indicator {
@@ -121,7 +126,7 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
     }
 
     .check-icon {
-      color: var(--mat-sys-primary);
+      color: #4DA9FF;
       font-size: 20px;
       width: 20px;
       height: 20px;
@@ -131,11 +136,11 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--mat-sys-outline);
+      background: #9ca3af;
     }
 
     .active .dot {
-      background: var(--mat-sys-primary);
+      background: #4DA9FF;
     }
 
     .agent-info {
@@ -153,20 +158,29 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       opacity: 0.7;
     }
 
+    /* ACTIVE PULSE ANIMATION */
     .pulse {
-      animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      animation: pulse-ring 1.5s ease-out infinite;
     }
 
     @keyframes pulse-ring {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--mat-sys-primary-rgb), 0.7); }
-      70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(var(--mat-sys-primary-rgb), 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--mat-sys-primary-rgb), 0); }
+      0% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 rgba(77,169,255,0.6);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px rgba(77,169,255,0);
+      }
+      100% {
+        transform: scale(0.9);
+      }
     }
 
     .sidebar-footer {
       margin-top: auto;
       padding-top: 16px;
-      border-top: 1px solid var(--mat-sys-outline-variant);
+      border-top: 1px solid #e5e7eb;
     }
 
     .status-badge {
@@ -175,15 +189,15 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       gap: 8px;
       font-size: 0.75rem;
       font-weight: 500;
-      color: var(--mat-sys-on-surface-variant);
+      color: #6b7280;
+    }
 
-      .pulse-dot {
-        width: 6px;
-        height: 6px;
-        background: #4caf50;
-        border-radius: 50%;
-        animation: status-pulse 2s infinite;
-      }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: status-pulse 2s infinite;
     }
 
     @keyframes status-pulse {
@@ -201,6 +215,7 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
 })
 export class AgentSidebarComponent {
   private readonly chat = inject(ChatService);
+
   protected readonly stages = PIPELINE_DISPLAY_STAGES;
   protected readonly currentStage = this.chat.currentStage;
   protected readonly completedStages = this.chat.completedStages;

@@ -54,22 +54,40 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     .chat-input-container {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 12px 16px;
-      background: var(--mat-sys-surface);
-      border-top: 1px solid var(--mat-sys-outline-variant);
+      gap: 10px;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--app-border);
     }
+
     .message-field {
       flex: 1;
     }
-    .attach-btn {
-      opacity: 0.6;
-    }
-    .attach-btn:hover {
-      opacity: 1;
-    }
+
+    .attach-btn,
     .send-btn {
       flex-shrink: 0;
+      border-radius: 999px;
+    }
+
+    .attach-btn {
+      opacity: 0.75;
+      color: var(--app-text-muted);
+    }
+
+    .attach-btn:hover {
+      opacity: 1;
+      background: var(--app-accent-soft);
+    }
+
+    .send-btn {
+      background: var(--app-brand-soft);
+      color: var(--app-brand-dark);
+    }
+
+    .send-btn:hover {
+      background: #bfdbfe;
     }
   `,
 })
