@@ -62,6 +62,9 @@ Review stages are optional HITL (Human-in-the-Loop) checkpoints.
 - **Grounded summarisation** — summariser receives full session state (all results), generates markdown report with decision log
 - **Web search augmentation** — Tavily API for real-time course lookups, trend research, salary data, and company research (with RAG/seed-data fallbacks)
 - **Three-tier architecture** — Angular 20 chat UI, FastAPI REST API, and CLI
+- **Explainable AI (XAI)** — unified `explainability_trace` on every agent output, SHAP-like skill attribution (Shapley values), LIME-like perturbation analysis, and cover letter grounding verification
+- **Fairness auditing** — Statistical Parity and Equal Opportunity checks (AIF360-inspired) run on every job search to detect location bias
+- **Prompt versioning** — all 6 agents have versioned prompts logged in every trace for MLSecOps audit and A/B evaluation
 
 ## Setup Instructions
 
@@ -199,7 +202,13 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 <project-root>/
 ├── config/
 │   ├── settings.py              # Pydantic BaseSettings, env vars
-│   └── prompts.py               # All system prompts (single source of truth)
+│   └── prompts.py               # All system prompts + prompt version constants
+├── xai/
+│   ├── trace.py                 # ExplainabilityTrace dataclass (unified format)
+│   ├── explainers.py            # SHAP-like attribution + LIME-like perturbation
+│   ├── fairness.py              # Statistical Parity + Equal Opportunity checks
+│   ├── grounding.py             # Cover letter claim verification
+│   └── README.md                # XAI module documentation + observation guide
 ├── models/
 │   ├── state.py                 # JobAIdState TypedDict (FSM, HITL, all agent outputs)
 │   ├── schemas.py               # Pydantic models: ResumeInfo, JobListing, SkillGap, etc.
@@ -431,12 +440,13 @@ uv run pytest tests/ -v
 uv run pytest tests/test_input_filter.py -v
 ```
 
-### Test Suite (188 tests)
+### Test Suite (210 tests)
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
 | `test_input_filter.py` | 47 | Prompt injection (7 patterns), input length limits, spotlight wrapping, adversarial inputs, **content safety (17 harmful blocked, 4 chat blocked, 7 legitimate pass)** |
 | `test_market_intelligence.py` | 55 | Output validation (14), JSON parsing (6), skill extraction (7), salary lookup (5), XAI explainability (6), hallucination guard (6), agent integration with mocked LLM (6), AI security (5) |
+| `test_xai.py` | 22 | ExplainabilityTrace (4), SHAP attribution + description fallback (5), LIME perturbation + description fallback (4), fairness audit — Statistical Parity & Equal Opportunity (6), pitch grounding verification (3) |
 | `test_skill_triage.py` | 14 | Skill matching, case insensitivity, edge cases, no-LLM verification, message format, top-N limiting, deduplication |
 | `test_output_filter.py` | 14 | Resume/job/pitch/market-intel output validation, grounding score |
 | `test_bounded_autonomy.py` | 14 | Iteration limits, per-stage retry limits, LLM call limits, reset |
