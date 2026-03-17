@@ -13,7 +13,10 @@ from langchain.schema import SystemMessage, HumanMessage
 import logging
 
 from config.settings import settings
-from config.prompts import JOB_DISCOVERY_SYSTEM
+from config.prompts import JOB_DISCOVERY_SYSTEM, JOB_DISCOVERY_PROMPT_VERSION
+from xai.trace import create_trace
+from xai.explainers import shap_skill_attribution, lime_job_explanation
+from xai.fairness import statistical_parity_check, equal_opportunity_check
 from guardrails.input_filter import validate_job_query, spotlight_wrap
 from guardrails.output_filter import validate_job_discovery_output
 from guardrails.model_router import get_model_for_task
@@ -295,5 +298,86 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
             "agent": "job_discovery",
             "issues": issues,
         }))
+
+    # --- XAI: Build comprehensive candidate skill list ---
+    # Include parsed skills + domain terms from resume text so SHAP/LIME
+    # can match against domain-level job keywords like "incident response"
+    candidate_skills_raw = resume_info.get("skills", {})
+    if isinstance(candidate_skills_raw, dict):
+        candidate_skill_list = (
+            candidate_skills_raw.get("technical", [])
+            + candidate_skills_raw.get("soft", [])
+            + candidate_skills_raw.get("certifications", [])
+        )
+    elif isinstance(candidate_skills_raw, list):
+        candidate_skill_list = candidate_skills_raw
+    else:
+        candidate_skill_list = []
+
+    # Extract domain terms from resume summary + experience descriptions
+    # so we match "incident response", "malware analysis" etc., not just tool names
+    _resume_full = resume_info or {}
+    _resume_text_parts = [
+        _resume_full.get("professional_summary", ""),
+        " ".join(
+            e.get("description", "") for e in _resume_full.get("experience", [])
+            if isinstance(e, dict)
+        ),
+    ]
+    _resume_text = " ".join(_resume_text_parts)
+    if _resume_text.strip():
+        try:
+            from tools.job_board_api import _extract_keywords_from_text
+            _domain_terms = _extract_keywords_from_text(_resume_text)
+            # Add domain terms not already in skill list
+            _existing_lower = {s.lower() for s in candidate_skill_list}
+            for term in _domain_terms:
+                if term.lower() not in _existing_lower:
+                    candidate_skill_list.append(term)
+        except ImportError:
+            pass
+
+    shap_attributions = {}
+    for job in top10[:5]:
+        job_key = f"{job.get('title', '?')} @ {job.get('company', '?')}"
+        shap_attributions[job_key] = shap_skill_attribution(
+            candidate_skill_list,
+            job.get("keywords", []),
+            job_description=f"{job.get('title', '')} {job.get('description', '')}",
+        )
+    result["shap_attributions"] = shap_attributions
+
+    # --- XAI: LIME-like explanation for the top job ---
+    lime_explanations = []
+    if top10:
+        top_job = top10[0]
+        lime_explanations = lime_job_explanation(
+            candidate_skill_list,
+            top_job.get("keywords", []),
+            top_n=5,
+            job_description=f"{top_job.get('title', '')} {top_job.get('description', '')}",
+        )
+    result["lime_explanations"] = lime_explanations
+
+    # --- XAI: Fairness audit ---
+    candidate_location = state.get("location_preference", "")
+    result["fairness_audit"] = {
+        "statistical_parity": statistical_parity_check(top10, candidate_location),
+        "equal_opportunity": equal_opportunity_check(top10, candidate_location),
+    }
+
+    # --- XAI: Explainability trace ---
+    xai_warnings = list(fallback_used)
+    result["explainability_trace"] = create_trace(
+        agent_name="job_discovery",
+        prompt_version=JOB_DISCOVERY_PROMPT_VERSION,
+        confidence=top10[0].get("score", 0) / 100.0 if top10 else 0.0,
+        reasoning=f"Ranked {len(top10)} jobs from {len(raw_jobs)} candidates; source={source}",
+        feature_attributions={"top_job_shap": shap_attributions.get(
+            f"{top10[0].get('title', '?')} @ {top10[0].get('company', '?')}", {}
+        ) if top10 else {}},
+        sources_consulted=[source, "chromadb"] if semantic_results else [source],
+        warnings=xai_warnings,
+    ).to_dict()
 
     return result

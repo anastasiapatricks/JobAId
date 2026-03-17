@@ -12,7 +12,8 @@ from guardrails.bounded_autonomy import BoundedAutonomy
 from guardrails.input_filter import spotlight_wrap
 from guardrails.model_router import get_model_for_task
 from config.settings import settings
-from config.prompts import ORCHESTRATOR_ROUTER_SYSTEM
+from config.prompts import ORCHESTRATOR_ROUTER_SYSTEM, ORCHESTRATOR_PROMPT_VERSION
+from xai.trace import create_trace
 from utils import debug, get_latest_results
 from utils.llm_logger import logged_invoke
 
@@ -287,6 +288,19 @@ def interpret_user_intent(user_message: str, state: dict) -> dict:
     result.setdefault("action", "chitchat")
     result.setdefault("response_text", "")
     result.setdefault("parameters", {})
+
+    # --- XAI: Explainability trace for intent routing ---
+    action = result["action"]
+    routing_confidence = 0.9 if action != "chitchat" else 0.6
+    result["explainability_trace"] = create_trace(
+        agent_name="orchestrator",
+        prompt_version=ORCHESTRATOR_PROMPT_VERSION,
+        confidence=routing_confidence,
+        reasoning=f"Routed '{user_message[:50]}' → {action}",
+        feature_attributions={"action": action, "parameters": result["parameters"]},
+        sources_consulted=["conversation_history", "state_summary"],
+        warnings=["Fallback to chitchat (ambiguous intent)"] if action == "chitchat" and not result["response_text"] else [],
+    ).to_dict()
 
     debug(f"Orchestrator router: action={result['action']}")
     return result

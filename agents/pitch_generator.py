@@ -14,7 +14,10 @@ from config.prompts import (
     PITCH_MATCH_ANALYSIS_SYSTEM,
     PITCH_DRAFT_SYSTEM,
     PITCH_REVIEW_SYSTEM,
+    PITCH_GENERATOR_PROMPT_VERSION,
 )
+from xai.trace import create_trace
+from xai.grounding import verify_pitch_grounding
 from guardrails.output_filter import validate_pitch_output
 from guardrails.model_router import get_model_for_task
 from tools.tavily_search import search_company
@@ -210,5 +213,26 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
             "agent": "pitch_generator",
             "issues": issues,
         }))
+
+    # --- XAI: Grounding verification ---
+    latest = get_latest_results(state)
+    resume_info = latest.get("resume_info") or state.get("resume_info") or {}
+    grounding = verify_pitch_grounding(final_pitch, resume_info, best_job)
+    result["grounding_verification"] = grounding
+
+    # --- XAI: Explainability trace ---
+    xai_warnings = list(grounding.get("warnings", []))
+    if not valid:
+        xai_warnings.extend(issues)
+    result["explainability_trace"] = create_trace(
+        agent_name="pitch_generator",
+        prompt_version=PITCH_GENERATOR_PROMPT_VERSION,
+        confidence=grounding["grounding_score"],
+        reasoning=f"4-step chain for {job_title} @ {company}; {len(grounding['verified_claims'])} claims grounded",
+        feature_attributions={"match_analysis": match_analysis},
+        grounding_score=grounding["grounding_score"],
+        sources_consulted=["company_research", "match_analysis", "llm_draft", "llm_review"],
+        warnings=xai_warnings,
+    ).to_dict()
 
     return result

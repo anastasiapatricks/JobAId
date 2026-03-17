@@ -6,6 +6,11 @@ Each versioned prompt has a corresponding VERSION constant logged with every LLM
 
 # --- Prompt Versions (for MLSecOps traceability) ---
 MARKET_INTELLIGENCE_PROMPT_VERSION = "1.1.0"
+RESUME_PARSER_PROMPT_VERSION = "1.0.0"
+JOB_DISCOVERY_PROMPT_VERSION = "1.0.0"
+PITCH_GENERATOR_PROMPT_VERSION = "1.0.0"
+ORCHESTRATOR_PROMPT_VERSION = "1.0.0"
+SUMMARIZER_PROMPT_VERSION = "1.0.0"
 
 RESUME_PARSER_SYSTEM = """\
 You are a professional resume parser. Extract structured information from the resume text provided.

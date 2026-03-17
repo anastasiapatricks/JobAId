@@ -8,7 +8,8 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
 from config.settings import settings
-from config.prompts import SUMMARIZER_SYSTEM
+from config.prompts import SUMMARIZER_SYSTEM, SUMMARIZER_PROMPT_VERSION
+from xai.trace import create_trace
 from guardrails.output_filter import check_grounding
 from guardrails.model_router import get_model_for_task
 from utils import debug
@@ -84,7 +85,22 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
             f"[{e.get('stage')}] {e.get('action')}: {e.get('reasoning')}" for e in log
         )
 
+    # --- XAI: Explainability trace ---
+    xai_warnings = []
+    if grounding_score < 0.5:
+        xai_warnings.append(f"Low grounding score ({grounding_score:.2f})")
+    explainability_trace = create_trace(
+        agent_name="summarizer",
+        prompt_version=SUMMARIZER_PROMPT_VERSION,
+        confidence=grounding_score,
+        reasoning=f"Grounding score {grounding_score:.2f}; {len(log)} decision log entries",
+        grounding_score=grounding_score,
+        sources_consulted=["session_state", "decision_log"],
+        warnings=xai_warnings,
+    ).to_dict()
+
     return {
         "messages": [{"role": "assistant", "content": "[Summarizer] Final report generated."}],
         "summary": summary_text + log_text,
+        "explainability_trace": explainability_trace,
     }
