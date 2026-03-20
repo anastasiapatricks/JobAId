@@ -37,6 +37,9 @@ class ApprovalRequest(BaseModel):
 class ResultEntry(BaseModel):
     action: str
     timestamp: str
+
+    explainability_trace: Optional[Dict[str, Any]] = None
+
     scored_jobs: Optional[List[Dict[str, Any]]] = None
     skill_triage: Optional[List[Dict[str, Any]]] = None
     matching_explanation: Optional[List[str]] = None

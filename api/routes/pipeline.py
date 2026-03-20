@@ -8,6 +8,7 @@ import threading
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
+
 logger = logging.getLogger("jobaid.api")
 from models.api_models import (
     PipelineRunRequest,
@@ -22,6 +23,7 @@ from api.dependencies import get_session, update_session, get_graph
 from agents.orchestrator import reset_autonomy, interpret_user_intent
 from guardrails.input_filter import validate_chat_message
 from utils import get_latest_results
+from utils.explainability import ensure_explainability_trace
 from graph.nodes import (
     resume_parser_node,
     job_discovery_node,
@@ -394,9 +396,28 @@ async def get_results(session_id: str):
     state = session.get("result") or session.get("state", {})
     raw_results = state.get("results", [])
 
+    # Ensure every result entry has explainability_trace
+    normalized_entries = []
+    for entry in raw_results:
+        payload = dict(entry)
+
+        payload = ensure_explainability_trace(
+            payload,
+            agent_name=payload.get("action", "unknown"),
+            prompt_version=payload.get("prompt_version", "demo"),
+            confidence=float(payload.get("parsing_confidence", 0.75) or 0.75),
+            reasoning=f"{payload.get('action', 'unknown')} completed and returned output.",
+            sources_consulted=payload.get("sources_consulted", []),
+            warnings=payload.get("warnings", []),
+            feature_attributions=payload.get("feature_attributions", {}),
+            grounding_score=payload.get("grounding_score"),
+        )
+
+        normalized_entries.append(payload)
+
     # Convert raw dicts to ResultEntry models
     result_entries = []
-    for entry in raw_results:
+    for entry in normalized_entries:
         result_entries.append(ResultEntry(**entry))
 
     return PipelineResultsResponse(

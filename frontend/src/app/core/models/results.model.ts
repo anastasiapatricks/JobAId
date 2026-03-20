@@ -52,6 +52,21 @@ export interface DecisionLogEntry {
   timestamp?: string;
 }
 
+export interface ExplainabilityTrace {
+  stage?: string;
+  agent?: string;
+  prompt_version?: string;
+  reasoning?: string;
+  decision_log?: DecisionLogEntry[];
+  input_summary?: string;
+  output_summary?: string;
+  grounding_checks?: string[];
+  fairness_checks?: string[];
+  skill_attribution?: Record<string, number>;
+  perturbation_analysis?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface ResultEntry {
   action: string;
   timestamp: string;
@@ -71,6 +86,7 @@ export interface ResultEntry {
   resume_debiased?: Record<string, unknown> | null;
   parsing_confidence?: number | null;
   missing_fields?: string[];
+  explainability_trace?: ExplainabilityTrace[] | ExplainabilityTrace | null;
   [key: string]: unknown;
 }
 
