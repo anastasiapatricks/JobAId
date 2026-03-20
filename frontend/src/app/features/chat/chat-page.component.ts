@@ -133,6 +133,20 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   private progressInterval?: any;
 
   ngOnInit(): void {
+    // If a session is already active, restore state instead of wiping the chat
+    const status = this.session.sessionStatus();
+    if (this.session.hasSession() && status !== 'none' && status !== 'error') {
+      this.resumeText = ''; // resumeText is in-memory only; pipeline already has it
+      if (status === 'running') {
+        this.state = 'running';
+      } else if (status === 'awaiting_input') {
+        this.state = 'awaiting_input';
+      } else if (status === 'complete') {
+        this.state = 'results';
+      }
+      return;
+    }
+
     this.chat.clear();
     this.chat.addWelcome();
     this.state = 'awaiting_resume';
