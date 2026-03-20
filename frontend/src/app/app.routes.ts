@@ -16,5 +16,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/chat/chat-page.component').then((m) => m.ChatPageComponent),
   },
+  {
+    path: 'explainability',
+    loadComponent: () =>
+      import('./features/explainability/explainability-page.component').then(
+        (m) => m.ExplainabilityPageComponent,
+      ),
+  },
   { path: '**', redirectTo: '' },
 ];

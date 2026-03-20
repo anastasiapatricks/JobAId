@@ -55,15 +55,22 @@ export interface DecisionLogEntry {
 export interface ExplainabilityTrace {
   stage?: string;
   agent?: string;
+  agent_name?: string;
   prompt_version?: string;
+  confidence?: number;
   reasoning?: string;
   decision_log?: DecisionLogEntry[];
   input_summary?: string;
   output_summary?: string;
   grounding_checks?: string[];
+  grounding_score?: number;
   fairness_checks?: string[];
   skill_attribution?: Record<string, number>;
+  feature_attributions?: Record<string, unknown>;
   perturbation_analysis?: Record<string, unknown>;
+  sources_consulted?: string[];
+  warnings?: string[];
+  timestamp?: string;
   [key: string]: unknown;
 }
 
@@ -87,6 +94,7 @@ export interface ResultEntry {
   parsing_confidence?: number | null;
   missing_fields?: string[];
   explainability_trace?: ExplainabilityTrace[] | ExplainabilityTrace | null;
+  decision_log?: DecisionLogEntry[];
   [key: string]: unknown;
 }
 

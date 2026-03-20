@@ -4,7 +4,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { RouterLink } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { SessionService } from '../../core/services/session.service';
 import { ChatService } from '../../core/services/chat.service';
 import { PipelineService } from '../../core/services/pipeline.service';
@@ -19,6 +19,7 @@ import { PipelineService } from '../../core/services/pipeline.service';
     MatIconModule,
     MatTooltipModule,
     RouterLink,
+    RouterLinkActive,
   ],
   template: `
     <mat-toolbar class="toolbar">
@@ -28,6 +29,19 @@ import { PipelineService } from '../../core/services/pipeline.service';
       </a>
 
       <span class="spacer"></span>
+
+      @if (hasXaiData()) {
+        <a
+          mat-button
+          routerLink="/explainability"
+          routerLinkActive="xai-tab-active"
+          class="xai-tab-btn"
+          matTooltip="View explainability log"
+        >
+          <mat-icon>psychology</mat-icon>
+          Explainability
+        </a>
+      }
 
       @if (session.hasSession()) {
         <span
@@ -120,6 +134,25 @@ import { PipelineService } from '../../core/services/pipeline.service';
       color: white;
     }
 
+    .xai-tab-btn {
+      color: white !important;
+      font-weight: 500;
+      font-size: 0.875rem;
+      margin-right: 4px;
+      border-radius: 20px;
+      padding: 0 14px;
+      mat-icon { font-size: 18px; width: 18px; height: 18px; margin-right: 4px; }
+    }
+
+    .xai-tab-btn:hover {
+      background: rgba(255,255,255,0.2);
+    }
+
+    .xai-tab-active {
+      background: rgba(255,255,255,0.25) !important;
+      box-shadow: inset 0 -2px 0 white;
+    }
+
     .new-session-btn {
       color: white !important;
     }
@@ -146,6 +179,8 @@ export class ToolbarComponent {
   protected readonly session = inject(SessionService);
   protected readonly pipeline = inject(PipelineService);
   private readonly chat = inject(ChatService);
+
+  readonly hasXaiData = computed(() => !!this.pipeline.results()?.results?.length);
 
   readonly sessionStatusText = computed(() => {
     const s = this.session.sessionStatus();
