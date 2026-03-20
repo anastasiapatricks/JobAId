@@ -1,15 +1,18 @@
 import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSidenavModule } from '@angular/material/sidenav';
 import { ChatService } from '../../core/services/chat.service';
 import { SessionService } from '../../core/services/session.service';
 import { PipelineService } from '../../core/services/pipeline.service';
 import { ApiService } from '../../core/services/api.service';
 import { LoggingService } from '../../core/services/logging.service';
+import { XaiDrawerService } from '../../core/services/xai-drawer.service';
 import { MessageListComponent } from './components/message-list.component';
 import { ChatInputComponent } from './components/chat-input.component';
 import { ResumeUploadComponent } from '../resume/resume-upload.component';
 import { AgentSidebarComponent } from './components/agent-sidebar.component';
+import { ExplainabilityPageComponent } from '../explainability/explainability-page.component';
 
 type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 'results';
 
@@ -21,48 +24,67 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
     ChatInputComponent,
     ResumeUploadComponent,
     AgentSidebarComponent,
+    ExplainabilityPageComponent,
     MatSnackBarModule,
-    MatProgressBarModule
+    MatProgressBarModule,
+    MatSidenavModule
   ],
   template: `
-    <div class="chat-layout">
-      <jobaid-agent-sidebar></jobaid-agent-sidebar>
+    <mat-sidenav-container class="sidenav-container">
 
-      <div class="chat-page">
-        <jobaid-message-list
-          [messages]="chat.messages()"
-          [isTyping]="chat.isTyping()"
-          [typingMessage]="typingMessage"
-          (suggestionClicked)="onSuggestionClicked($event)"
-        ></jobaid-message-list>
+      <mat-sidenav
+        #xaiSidenav
+        mode="over"
+        position="end"
+        [opened]="xaiDrawer.isOpen()"
+        (closedStart)="xaiDrawer.close()"
+        class="xai-sidenav"
+      >
+        <jobaid-explainability-panel></jobaid-explainability-panel>
+      </mat-sidenav>
 
-        @if (state === 'running') {
-          <div class="progress-section">
-            <div class="progress-info">
-              <span class="progress-label">{{ typingMessage }}</span>
-              <span class="progress-value">{{ pipelineProgress() }}%</span>
-            </div>
-            <mat-progress-bar mode="determinate" [value]="pipelineProgress()"></mat-progress-bar>
+      <mat-sidenav-content>
+        <div class="chat-layout">
+          <jobaid-agent-sidebar></jobaid-agent-sidebar>
+
+          <div class="chat-page">
+            <jobaid-message-list
+              [messages]="chat.messages()"
+              [isTyping]="chat.isTyping()"
+              [typingMessage]="typingMessage"
+              (suggestionClicked)="onSuggestionClicked($event)"
+            ></jobaid-message-list>
+
+            @if (state === 'running') {
+              <div class="progress-section">
+                <div class="progress-info">
+                  <span class="progress-label">{{ typingMessage }}</span>
+                  <span class="progress-value">{{ pipelineProgress() }}%</span>
+                </div>
+                <mat-progress-bar mode="determinate" [value]="pipelineProgress()"></mat-progress-bar>
+              </div>
+            }
+
+            @if (state === 'awaiting_resume') {
+              <div class="upload-section">
+                <jobaid-resume-upload
+                  (fileUploaded)="onFileUploaded($event)"
+                  (textPasted)="onResumePasted($event)"
+                ></jobaid-resume-upload>
+              </div>
+            }
+
+            @if (state !== 'awaiting_resume') {
+              <jobaid-chat-input
+                (messageSent)="onMessageSent($event)"
+                (fileSelected)="onFileUploaded($event)"
+              ></jobaid-chat-input>
+            }
           </div>
-        }
+        </div>
+      </mat-sidenav-content>
 
-        @if (state === 'awaiting_resume') {
-          <div class="upload-section">
-            <jobaid-resume-upload
-              (fileUploaded)="onFileUploaded($event)"
-              (textPasted)="onResumePasted($event)"
-            ></jobaid-resume-upload>
-          </div>
-        }
-
-        @if (state !== 'awaiting_resume') {
-          <jobaid-chat-input
-            (messageSent)="onMessageSent($event)"
-            (fileSelected)="onFileUploaded($event)"
-          ></jobaid-chat-input>
-        }
-      </div>
-    </div>
+    </mat-sidenav-container>
   `,
   styles: `
     :host {
@@ -70,6 +92,19 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
       flex-direction: column;
       flex: 1;
       overflow: hidden;
+    }
+    .sidenav-container {
+      flex: 1;
+      height: 100%;
+    }
+    mat-sidenav-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .xai-sidenav {
+      width: 420px;
+      max-width: 90vw;
     }
     .chat-layout {
       display: flex;
@@ -120,6 +155,7 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
 })
 export class ChatPageComponent implements OnInit, OnDestroy {
   protected readonly chat = inject(ChatService);
+  protected readonly xaiDrawer = inject(XaiDrawerService);
   private readonly session = inject(SessionService);
   private readonly pipeline = inject(PipelineService);
   private readonly api = inject(ApiService);

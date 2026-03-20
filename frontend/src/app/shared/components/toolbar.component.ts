@@ -4,10 +4,11 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { SessionService } from '../../core/services/session.service';
 import { ChatService } from '../../core/services/chat.service';
 import { PipelineService } from '../../core/services/pipeline.service';
+import { XaiDrawerService } from '../../core/services/xai-drawer.service';
 
 @Component({
   selector: 'jobaid-toolbar',
@@ -19,7 +20,6 @@ import { PipelineService } from '../../core/services/pipeline.service';
     MatIconModule,
     MatTooltipModule,
     RouterLink,
-    RouterLinkActive,
   ],
   template: `
     <mat-toolbar class="toolbar">
@@ -31,16 +31,16 @@ import { PipelineService } from '../../core/services/pipeline.service';
       <span class="spacer"></span>
 
       @if (hasXaiData()) {
-        <a
+        <button
           mat-button
-          routerLink="/explainability"
-          routerLinkActive="xai-tab-active"
           class="xai-tab-btn"
-          matTooltip="View explainability log"
+          [class.xai-tab-active]="xaiDrawer.isOpen()"
+          matTooltip="Toggle explainability log"
+          (click)="xaiDrawer.toggle()"
         >
           <mat-icon>psychology</mat-icon>
           Explainability
-        </a>
+        </button>
       }
 
       @if (session.hasSession()) {
@@ -73,7 +73,6 @@ import { PipelineService } from '../../core/services/pipeline.service';
       top: 0;
       z-index: 100;
 
-      /* Slightly darker baby blue */
       background: linear-gradient(135deg, #4DA9FF 0%, #22C7E8 100%) !important;
 
       color: white !important;
@@ -178,6 +177,7 @@ import { PipelineService } from '../../core/services/pipeline.service';
 export class ToolbarComponent {
   protected readonly session = inject(SessionService);
   protected readonly pipeline = inject(PipelineService);
+  protected readonly xaiDrawer = inject(XaiDrawerService);
   private readonly chat = inject(ChatService);
 
   readonly hasXaiData = computed(() => !!this.pipeline.results()?.results?.length);
@@ -200,5 +200,6 @@ export class ToolbarComponent {
     this.session.clear();
     this.chat.clear();
     this.chat.addWelcome();
+    this.xaiDrawer.close();
   }
 }
