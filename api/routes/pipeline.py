@@ -110,6 +110,26 @@ def _run_single_step(session_id: str, action: str, state: dict):
                 results_arr.append(mi_entry)
                 state["results"] = results_arr
 
+        # Auto-derive job_query from resume when user says "find jobs for my profile"
+        # without specifying a role — prevents 0ms no-op in job_discovery
+        if action == "discovery" and not state.get("job_query"):
+            from utils import get_latest_results
+            latest = get_latest_results(state)
+            resume_info = (latest.get("resume_debiased") or state.get("resume_debiased")
+                           or latest.get("resume_info") or state.get("resume_info") or {})
+            exp = resume_info.get("experience", [])
+            derived = (resume_info.get("desired_job_title")
+                       or resume_info.get("current_title")
+                       or (exp[0].get("title") if exp else "")
+                       or "")
+            if derived:
+                state["job_query"] = derived
+                logger.info(json.dumps({
+                    "event": "job_query_derived",
+                    "session_id": session_id,
+                    "derived_query": derived,
+                }))
+
         node_fn = _ACTION_NODES.get(action)
         if not node_fn:
             logger.warning(json.dumps({"event": "step_unknown_action", "session_id": session_id, "action": action}))
