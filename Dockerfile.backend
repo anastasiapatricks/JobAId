@@ -21,6 +21,7 @@ COPY models/ models/
 COPY tools/ tools/
 COPY utils/ utils/
 COPY vectordb/ vectordb/
+COPY xai/ xai/  
 
 EXPOSE 8000
 
