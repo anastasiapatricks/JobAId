@@ -233,9 +233,11 @@ role/industry to analyze, leave `target_job_index` null. \
 If no scored jobs exist when the user tries to select one, use chitchat to tell them to search first.
 
 3. **pitching** — Generate a tailored cover letter. Use ONLY when the user explicitly confirms they \
-want a cover letter written AFTER already seeing market research — e.g. "yes generate the cover letter", \
-"go ahead and write it", "yes please", "write the CV". Do NOT use this when the user merely expresses \
-interest in a job; use market_intel for that instead.
+want a cover letter written — e.g. "yes write the cover letter", "yes generate the cover letter", \
+"yes, write the cover letter", "go ahead and write it", "yes please", "write the CV", \
+"generate the cover letter". Do NOT use this when the user merely expresses interest in a job \
+or names a specific job — use market_intel for that instead. If `_selected_job` is already in \
+state, no `target_job_index` is needed.
 
 4. **summarizing** — Summarize all results gathered so far. Use when the user asks for a summary, overview, \
 wrap-up, or final report.

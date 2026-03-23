@@ -711,7 +711,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
                 type: 'text',
                 sender: 'system',
                 text: `Here's the market research for ${jobLabel}. Would you like me to generate a tailored cover letter for this role?`,
-                suggestions: [`Yes, generate a cover letter for ${title}${company ? ' at ' + company : ''}`],
+                suggestions: ['Yes, write the cover letter'],
                 completedStages: finalStages,
               };
               this.chat['addMessage'](msg);
