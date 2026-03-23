@@ -220,7 +220,9 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
         scored = _parse_json_response(response.content)
         # If LLM returned empty (all jobs irrelevant), retry with resume job title
         if not (isinstance(scored, list) and scored):
-            job_title = resume_info.get("desired_job_title") or resume_info.get("current_title") or ""
+            exp = resume_info.get("experience", [])
+            job_title = (resume_info.get("desired_job_title") or resume_info.get("current_title")
+                         or (exp[0].get("title") if exp else "") or "")
             if job_title and job_title.lower() != job_query.lower():
                 debug(f"Job Discovery: LLM scored nothing, retrying with resume title '{job_title}'")
                 retry_jobs = search_jobs(job_title, location, num_results=15)
