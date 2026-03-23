@@ -196,3 +196,45 @@ def search_company(company_name: str) -> str:
         }))
         debug(f"Tavily company search error: {exc}")
         return ""
+
+
+def search_company_contact(company_name: str, location: str) -> str:
+    """Search the web for a company's office address and phone number in a specific region."""
+    client = _get_client()
+    if client is None:
+        return ""
+    if not company_name:
+        return ""
+    location_part = f" {location}" if location else ""
+    query = f"{company_name} office address phone number contact{location_part}"
+    start = time.time()
+    try:
+        debug(f"Tavily company contact search: {query[:80]}")
+        response = client.search(query=query, search_depth="basic", max_results=3)
+        results = response.get("results", [])
+        latency_ms = round((time.time() - start) * 1000, 1)
+        _api_logger.info(json.dumps({
+            "event": "external_api_call",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "service": "tavily",
+            "operation": "search_company_contact",
+            "status": "success",
+            "latency_ms": latency_ms,
+            "result_count": len(results),
+        }))
+        if not results:
+            return ""
+        return "Web search — company contact info:\n" + _format_results(results, snippet_len=300)
+    except Exception as exc:
+        latency_ms = round((time.time() - start) * 1000, 1)
+        _api_logger.error(json.dumps({
+            "event": "external_api_call",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "service": "tavily",
+            "operation": "search_company_contact",
+            "status": "error",
+            "latency_ms": latency_ms,
+            "error": str(exc)[:200],
+        }))
+        debug(f"Tavily company contact search error: {exc}")
+        return ""

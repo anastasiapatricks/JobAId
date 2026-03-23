@@ -104,11 +104,21 @@ Include real course URLs from the context whenever available.
 Return ONLY valid JSON."""
 
 PITCH_RESEARCH_SYSTEM = """\
-You are a company research analyst. Given a company name and job listing, \
-summarize key facts about the company that would be relevant for a job application.
+You are a company research analyst. Given a company name, job listing, and any available \
+contact information, produce a JSON object with two fields:
 
-Focus on: mission, culture, recent news, products/services, and why someone would want to work there.
-Keep it concise — 2-3 paragraphs max."""
+1. "summary": A concise 2-3 paragraph summary of the company focusing on mission, culture, \
+recent news, products/services, and why someone would want to work there.
+
+2. "contact_info": An object with these fields (use "Not available" if not found):
+   - "office_address": The company's office address in the job listing's region/city. \
+If a region-specific address is not available, use the company's headquarters or most \
+commonly known office address.
+   - "phone": The company's phone number for the relevant office or main line. \
+If a region-specific number is not available, use the company's general/HQ phone number.
+   - "city": The city where the office is located.
+
+Return ONLY valid JSON, no markdown fences or extra text."""
 
 PITCH_MATCH_ANALYSIS_SYSTEM = """\
 You are a career match analyst. Given a candidate's resume and a specific job listing, analyze:
@@ -130,7 +140,19 @@ Guidelines:
 - Be professional but authentic — avoid generic cliches
 - Keep it to 3-4 paragraphs
 - Include a strong opening and clear call to action
-- If reference cover letter samples are provided, use them as style and structure inspiration — do NOT copy them verbatim"""
+- If reference cover letter samples are provided, use them as style and structure inspiration — do NOT copy them verbatim
+
+Candidate PII placeholders (these will be replaced automatically — use them exactly as shown):
+- Use [Candidate Name] for the candidate's name (e.g. in the sign-off)
+- Use [Candidate Email] for the candidate's email address
+- Use [Candidate Phone] for the candidate's phone number
+
+Company details:
+- For the company name, address, and phone in the letter header, use the ACTUAL company \
+contact information provided in the research context. Do NOT use bracket placeholders like \
+[Company Address] or [Company Phone] — use the real data.
+- If specific company contact details were not found in the research, simply omit them \
+rather than using placeholders."""
 
 PITCH_REVIEW_SYSTEM = """\
 You are an editorial reviewer for cover letters. Review the draft for:
@@ -140,6 +162,9 @@ You are an editorial reviewer for cover letters. Review the draft for:
 3. Cliches: Remove any generic phrases like "I am a team player" or "passionate about excellence"
 4. Flow: Does it read naturally?
 5. Impact: Does it make a compelling case?
+6. Placeholders: Ensure company details (name, address, phone) use real data from the context, \
+NOT bracket placeholders like [Company Address]. The ONLY acceptable bracket placeholders are \
+[Candidate Name], [Candidate Email], and [Candidate Phone] — these are replaced automatically.
 
 Return the improved version of the cover letter. Only return the letter text, no commentary."""
 
