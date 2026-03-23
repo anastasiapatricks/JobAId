@@ -7,7 +7,6 @@ and LLM-powered ranking with scoring rubric.
 import json
 from typing import Dict, Any, List
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 import logging
@@ -20,6 +19,7 @@ from xai.fairness import statistical_parity_check, equal_opportunity_check
 from guardrails.input_filter import validate_job_query, spotlight_wrap
 from guardrails.output_filter import validate_job_discovery_output
 from guardrails.model_router import get_model_for_task
+from guardrails.llm_factory import get_llm
 from tools.job_board_api import search_jobs
 from tools.chromadb_tools import upsert_jobs, search_collection
 from utils import debug, get_latest_results
@@ -212,7 +212,7 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
         from agents.orchestrator import get_autonomy
         if not get_autonomy().record_llm_call():
             raise RuntimeError("LLM call limit exceeded")
-        llm = ChatOpenAI(model=get_model_for_task("job_ranking"), temperature=0)
+        llm = get_llm(model=get_model_for_task("job_ranking"), temperature=0, task_type="job_ranking")
         response = logged_invoke(llm, [
             SystemMessage(content=JOB_DISCOVERY_SYSTEM),
             HumanMessage(content=user_prompt),

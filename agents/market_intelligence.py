@@ -5,7 +5,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from config.settings import settings
@@ -14,6 +13,7 @@ from xai.trace import create_trace
 from guardrails.input_filter import validate_job_query
 from guardrails.output_filter import validate_market_intel_output
 from guardrails.model_router import get_model_for_task
+from guardrails.llm_factory import get_llm
 from tools.chromadb_tools import search_collection
 from tools.tavily_search import search_courses, search_trends, search_salary
 from utils import debug, get_latest_results, _log_context
@@ -347,7 +347,7 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
         from agents.orchestrator import get_autonomy
         if not get_autonomy().record_llm_call():
             raise RuntimeError("LLM call limit exceeded")
-        llm = ChatOpenAI(model=get_model_for_task("market_intelligence"), temperature=0)
+        llm = get_llm(model=get_model_for_task("market_intelligence"), temperature=0, task_type="market_intelligence")
         response = logged_invoke(llm, [
             SystemMessage(content=MARKET_INTELLIGENCE_SYSTEM),
             HumanMessage(content=user_prompt),

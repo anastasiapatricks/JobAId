@@ -7,11 +7,18 @@ from typing import Optional
 class Settings(BaseSettings):
     """Central configuration via environment variables."""
 
+    # LLM Provider Selection
+    llm_provider: str = "openai"  # "openai" or "lmstudio"
+
     # OpenAI
     openai_api_key: str = ""
+    openai_base_url: Optional[str] = None  # None = use default OpenAI endpoint
     default_model: str = "gpt-4o-mini"
     quality_model: str = "gpt-4o"
     embedding_model: str = "text-embedding-3-small"
+
+    # LM Studio
+    lmstudio_base_url: str = "http://localhost:1234/v1"
 
     # Adzuna job board API
     adzuna_app_id: str = ""
