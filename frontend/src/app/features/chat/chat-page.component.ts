@@ -700,12 +700,11 @@ export class ChatPageComponent implements OnInit, OnDestroy {
               }
             }
           } else if (action === 'market_intel') {
-            const state = results as any;
-            const selected = state._selected_job || null;
-            if (selected?.title) {
+            const selected = results.selected_job || null;
+            if (selected?.['title']) {
               // Job-specific market intel — prompt to generate cover letter
-              const title: string = selected.title;
-              const company: string = selected.company || '';
+              const title: string = selected['title'] as string;
+              const company: string = (selected['company'] as string) || '';
               const jobLabel = company ? `${title} at ${company}` : title;
               const msg: any = {
                 type: 'text',

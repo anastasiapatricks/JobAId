@@ -454,5 +454,7 @@ async def get_results(session_id: str):
         last_action=state.get("last_action"),
         resume_info=state.get("resume_info"),
         results=result_entries,
-        completed_stages=_get_completed_stages(state)
+        completed_stages=_get_completed_stages(state),
+        selected_job=state.get("_selected_job"),
+        awaiting_cv_confirmation=bool(state.get("_awaiting_cv_confirmation")),
     )
