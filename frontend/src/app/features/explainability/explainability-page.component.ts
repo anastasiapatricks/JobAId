@@ -155,6 +155,8 @@ const DEFAULT_META = { icon: 'smart_toy', color: '#546E7A', label: '' };
                       }
                     </div>
                   }
+                } @else if (hasShapData(item.trace)) {
+                  <p class="shap-no-overlap">No direct skill overlap found between your profile and this job's listed keywords. Score is based on the LLM's semantic assessment.</p>
                 }
 
                 <!-- match_analysis (pitch_generator) -->
@@ -559,6 +561,14 @@ const DEFAULT_META = { icon: 'smart_toy', color: '#546E7A', label: '' };
       &.zero { color: #bdbdbd; }
     }
 
+    .shap-no-overlap {
+      margin: 4px 0 0;
+      font-size: 0.78rem;
+      color: #9e9e9e;
+      font-style: italic;
+      line-height: 1.45;
+    }
+
     /* Match analysis / generic */
     .match-analysis, .generic-attrs {
       display: flex;
@@ -797,6 +807,13 @@ export class ExplainabilityPageComponent {
     return v as { skill: string; explanation: string }[];
   }
 
+  /** Returns true when top_job_shap exists (even if all zeros) — used to show no-overlap note */
+  hasShapData(trace: ExplainabilityTrace): boolean {
+    const raw = trace.feature_attributions?.['top_job_shap'] as Record<string, unknown> | undefined;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+    return Object.keys(raw).some(k => k !== '_meta');
+  }
+
   /** top_job_shap from job_discovery — normalise to bar widths */
   getShapAttrs(trace: ExplainabilityTrace): { skill: string; value: number; pct: number }[] | null {
     const raw = trace.feature_attributions?.['top_job_shap'] as Record<string, unknown> | undefined;
@@ -807,6 +824,9 @@ export class ExplainabilityPageComponent {
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
     if (!entries.length) return null;
+    // If all values are zero there is no meaningful attribution to show
+    const hasContribution = entries.some(e => e.value !== 0);
+    if (!hasContribution) return null;
     const max = Math.max(...entries.map(e => Math.abs(e.value)), 0.001);
     return entries.map(e => ({ ...e, pct: Math.round((Math.abs(e.value) / max) * 100) }));
   }
