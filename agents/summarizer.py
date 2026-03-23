@@ -6,7 +6,8 @@ from typing import Dict, Any
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from config.settings import settings
+
+from guardrails.output_filter import check_grounding, scan_output_for_pii
 from config.prompts import SUMMARIZER_SYSTEM, SUMMARIZER_PROMPT_VERSION
 from xai.trace import create_trace
 from guardrails.output_filter import check_grounding
@@ -53,6 +54,14 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
             HumanMessage(content=f"Session data:\n\n{context}\n\nGenerate the final report."),
         ], "summarization")
         summary_text = response.content.strip()
+
+        # Scan summary for PII leakage and redact if needed
+        is_safe, leaked_pii = scan_output_for_pii(summary_text)
+        if not is_safe:
+            debug(f"Summarizer: PII leakage detected in summary ({len(leaked_pii)} entities), redacting...")
+            from tools.pii_sanitizer import filter_pii
+            summary_text, _ = filter_pii(summary_text, use_ner=True)
+
     except Exception as exc:
         debug(f"Summarizer LLM error: {exc}")
         summary_text = f"=== JobAId Summary ===\n\n{context}"
