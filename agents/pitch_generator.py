@@ -27,6 +27,7 @@ from guardrails.output_filter import (
     check_pitch_fabrication,
 )
 from guardrails.input_filter import sanitize_pitch_input, validate_pitch_job_data
+from guardrails.output_filter import validate_pitch_output, scan_output_for_pii
 from guardrails.model_router import get_model_for_task
 from guardrails.llm_factory import get_llm
 from tools.tavily_search import search_company, search_company_contact
@@ -436,6 +437,15 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         company_contact=company_contact,
     )
     debug("Pitch Generator: post-processing completed — placeholders replaced")
+
+    # Scan final pitch for PII leakage and redact if needed
+    is_safe, leaked_pii = scan_output_for_pii(final_pitch)
+    if not is_safe:
+        debug(f"Pitch Generator: PII leakage detected in cover letter ({len(leaked_pii)} entities), redacting...")
+        from tools.pii_sanitizer import filter_pii
+        final_pitch, _ = filter_pii(final_pitch, use_ner=True)
+
+    draft_pitches.append({"version": "final", "content": final_pitch})
 
     msg = f"[Pitch Generator] Generated cover letter for {job_title} at {company} (4-step chain: research → analysis → draft → review)."
 
