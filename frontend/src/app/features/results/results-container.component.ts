@@ -88,7 +88,7 @@ export class ResultsContainerComponent implements OnChanges {
   private static ACTION_SECTIONS: Record<string, string[]> = {
     discovery: ['scored_jobs'],
     market_intel: ['skill_gaps', 'upskilling_roadmap', 'salary_insights', 'market_outlook', 'industry_trends'],
-    pitching: ['skill_gaps', 'upskilling_roadmap', 'salary_insights', 'market_outlook', 'final_pitch'],
+    pitching: ['final_pitch'],
     summarizing: ['summary'],
   };
 
@@ -108,19 +108,6 @@ export class ResultsContainerComponent implements OnChanges {
         if (arr[i].action === this.action) {
           entry = { ...arr[i] };
           break;
-        }
-      }
-
-      if (this.action === 'pitching' && entry) {
-        for (let i = arr.length - 1; i >= 0; i--) {
-          if (arr[i].action === 'market_intel') {
-            const mi = arr[i];
-            if (!entry.skill_gaps && mi.skill_gaps) entry.skill_gaps = mi.skill_gaps;
-            if (!entry.upskilling_roadmap && mi.upskilling_roadmap) entry.upskilling_roadmap = mi.upskilling_roadmap;
-            if (!entry.salary_insights && mi.salary_insights) entry.salary_insights = mi.salary_insights;
-            if (!entry.market_outlook && mi.market_outlook) entry.market_outlook = mi.market_outlook;
-            break;
-          }
         }
       }
 
