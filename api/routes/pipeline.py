@@ -9,7 +9,14 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 
+import re
+
 logger = logging.getLogger("jobaid.api")
+
+_AFFIRMATIVE = re.compile(
+    r"\b(yes|yeah|yep|yup|sure|ok|okay|go ahead|write it|generate|create|do it|please)\b",
+    re.IGNORECASE,
+)
 from models.api_models import (
     PipelineRunRequest,
     PipelineStatusResponse,
@@ -180,6 +187,7 @@ def _run_single_step(session_id: str, action: str, state: dict):
             title = selected.get("title", "")
             company = selected.get("company", "")
             if title:
+                state["_awaiting_cv_confirmation"] = True
                 job_label = f"**{title}**" + (f" at **{company}**" if company else "")
                 confirm_msg = (
                     f"That's the market research for {job_label}. "
@@ -188,7 +196,7 @@ def _run_single_step(session_id: str, action: str, state: dict):
                 msgs.append({
                     "role": "assistant",
                     "content": confirm_msg,
-                    "suggestions": [f"Yes, generate a cover letter for {title}{f' at {company}' if company else ''}"],
+                    "suggestions": ["Yes, write the cover letter"],
                 })
         elif action == "pitching":
             msgs.append({"role": "assistant", "content": (
@@ -308,12 +316,21 @@ async def step(session_id: str, req: StepRequest):
         "message": req.message[:200],
     }))
 
-    # Let the orchestrator LLM interpret the user's intent
-    intent = interpret_user_intent(req.message, state)
-    action = intent.get("action", "chitchat")
-    response_text = intent.get("response_text", "")
-    logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
-    parameters = intent.get("parameters") or {}
+    # If we're waiting for CV confirmation, intercept affirmative replies without
+    # going to the LLM — the LLM keeps re-routing job names back to market_intel
+    if state.get("_awaiting_cv_confirmation") and _AFFIRMATIVE.search(req.message):
+        action = "pitching"
+        response_text = "Generating your cover letter now…"
+        parameters = {}
+        state["_awaiting_cv_confirmation"] = False
+        logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action, "via": "cv_confirmation_intercept"}))
+    else:
+        # Let the orchestrator LLM interpret the user's intent
+        intent = interpret_user_intent(req.message, state)
+        action = intent.get("action", "chitchat")
+        response_text = intent.get("response_text", "")
+        logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
+        parameters = intent.get("parameters") or {}
 
     # Persist assistant response to state for future context
     if response_text:
