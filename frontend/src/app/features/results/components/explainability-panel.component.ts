@@ -1,9 +1,8 @@
 import { Component, Input } from '@angular/core';
-import { DecimalPipe, KeyValuePipe } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
-import { ReplacePipe } from '../../../shared/pipes/replace.pipe';
-import { ExplainabilityTrace, DecisionLogEntry } from '../../../core/models/results.model';
+import { ExplainabilityTrace } from '../../../core/models/results.model';
 
 const AGENT_META: Record<string, { icon: string; color: string; label: string }> = {
   resume_parser:       { icon: 'description',   color: '#0097A7', label: 'Resume Parser'       },
@@ -19,7 +18,7 @@ const DEFAULT_META = { icon: 'smart_toy', color: '#546E7A', label: '' };
 @Component({
   selector: 'jobaid-explainability-panel',
   standalone: true,
-  imports: [DecimalPipe, KeyValuePipe, MatIconModule, MatChipsModule, ReplacePipe],
+  imports: [DecimalPipe, MatIconModule, MatChipsModule],
   template: `
     @if (!trace) {
       <div class="empty-state">

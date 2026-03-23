@@ -1,5 +1,5 @@
 import { Component, inject, computed } from '@angular/core';
-import { DecimalPipe, KeyValuePipe, JsonPipe } from '@angular/common';
+import { DecimalPipe, KeyValuePipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatButtonModule } from '@angular/material/button';
@@ -32,7 +32,6 @@ const DEFAULT_META = { icon: 'smart_toy', color: '#546E7A', label: '' };
   imports: [
     DecimalPipe,
     KeyValuePipe,
-    JsonPipe,
     MatIconModule,
     MatChipsModule,
     MatButtonModule,
