@@ -471,10 +471,22 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # --- XAI: Explainability trace ---
     xai_warnings = list(fallback_used)
+
+    # Derive grounding_score from SHAP overlap metadata for the top job
+    _grounding = 0.0
+    if top10:
+        _top_key = f"{top10[0].get('title', '?')} @ {top10[0].get('company', '?')}"
+        _top_shap = shap_attributions.get(_top_key, {})
+        _meta = _top_shap.get("_meta", {})
+        _kw_count = _meta.get("keyword_count", 0) if isinstance(_meta, dict) else 0
+        _overlap = _meta.get("overlap_count", 0) if isinstance(_meta, dict) else 0
+        _grounding = round(_overlap / max(_kw_count, 1), 4) if _kw_count > 0 else 0.0
+
     result["explainability_trace"] = create_trace(
         agent_name="job_discovery",
         prompt_version=JOB_DISCOVERY_PROMPT_VERSION,
         confidence=top10[0].get("score", 0) / 100.0 if top10 else 0.0,
+        grounding_score=_grounding,
         reasoning=f"Ranked {len(top10)} jobs from {len(raw_jobs)} candidates; source={source}",
         feature_attributions={"top_job_shap": shap_attributions.get(
             f"{top10[0].get('title', '?')} @ {top10[0].get('company', '?')}", {}
