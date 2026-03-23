@@ -700,7 +700,8 @@ export class ChatPageComponent implements OnInit, OnDestroy {
               }
             }
           } else if (action === 'market_intel') {
-            const selected = results._selected_job || null;
+            const state = results as any;
+            const selected = state._selected_job || null;
             if (selected?.title) {
               // Job-specific market intel — prompt to generate cover letter
               const title: string = selected.title;
@@ -718,7 +719,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
               // General market intel — prompt next action
               const allResults = results.results || [];
               const discResult = [...allResults].reverse().find((r: any) => r.action === 'discovery');
-              const scoredJobs = discResult?.scored_jobs || results.scored_jobs || [];
+              const scoredJobs: any[] = discResult?.scored_jobs || [];
               const jobChips = scoredJobs.slice(0, 3).map(
                 (j: any) => `I'm interested in ${j.title} at ${j.company}`
               );
