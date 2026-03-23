@@ -146,42 +146,76 @@ def _run_single_step(session_id: str, action: str, state: dict):
                 from agents.market_intelligence import skill_triage
                 triage_result = skill_triage(state)
                 entry["skill_triage"] = triage_result.get("skill_triage", [])
-                # Update the entry in results_arr (it's the last one appended)
                 results_arr[-1] = entry
                 state["results"] = results_arr
 
-                # Suggest picking a job — market intel runs automatically when they do
-                triage = triage_result.get("skill_triage", [])
-                if triage:
-                    top = triage[0]
-                    missing_list = top.get("skills_missing", [])[:3]
-                    missing = ", ".join(missing_list) if missing_list else "none identified"
-                    suggestion = (
-                        f"I found {n_jobs} job matches and compared your skills against each role. "
-                        f"Your top match is **{top['title']}** at **{top['company']}**"
-                        f"{f' (gaps: {missing})' if missing_list else ''}. "
-                        "Which role interests you?"
-                    )
-                else:
-                    suggestion = (
-                        f"I found {n_jobs} job matches! Which one interests you?"
-                    )
-
-                # Build clickable job suggestion buttons from top results
                 scored = entry.get("scored_jobs", [])
-                job_suggestions = []
-                for j in scored[:5]:
-                    title = j.get("title", "")
-                    company = j.get("company", "")
-                    if title and company:
-                        job_suggestions.append(f"I'm interested in {title} at {company}")
+                quality = entry.get("result_quality", "good")
+                original_query = entry.get("original_query", "")
+                reformulated = "query_reformulated" in (entry.get("fallback_used") or [])
 
-                suggestion_msg = {
-                    "role": "assistant",
-                    "content": suggestion,
-                    "suggestions": job_suggestions,
-                }
-                msgs.append(suggestion_msg)
+                if quality == "poor":
+                    # Build search suggestions from resume for better next query
+                    from utils import get_latest_results as _glr
+                    _latest = _glr(state)
+                    _ri = (_latest.get("resume_debiased") or state.get("resume_debiased")
+                           or _latest.get("resume_info") or state.get("resume_info") or {})
+                    _exp = _ri.get("experience", [])
+                    _title = (_ri.get("desired_job_title") or _ri.get("current_title")
+                              or (_exp[0].get("title") if _exp else "") or "")
+                    _skills = (_ri.get("skills") or {})
+                    _tech = _skills.get("technical", []) if isinstance(_skills, dict) else []
+                    search_chips = []
+                    if _title:
+                        search_chips.append(f"Find {_title} roles in Singapore")
+                    for s in _tech[:3]:
+                        search_chips.append(f"Find {s} jobs in Singapore")
+                    search_chips.append("Find cybersecurity jobs in Singapore")
+
+                    suggestion = (
+                        f"I searched for \"{original_query}\" but the job board didn't return strong matches "
+                        f"for that query in Singapore — the results shown are the closest available. "
+                        f"Try one of the searches below for better results:"
+                    )
+                    msgs.append({
+                        "role": "assistant",
+                        "content": suggestion,
+                        "suggestions": search_chips[:5],
+                    })
+                else:
+                    triage = triage_result.get("skill_triage", [])
+                    if reformulated:
+                        prefix = "I refined the search to better match your profile. "
+                    else:
+                        prefix = ""
+
+                    if triage:
+                        top = triage[0]
+                        missing_list = top.get("skills_missing", [])[:3]
+                        missing = ", ".join(missing_list) if missing_list else "none identified"
+                        suggestion = (
+                            f"{prefix}I found {n_jobs} job matches and compared your skills against each role. "
+                            f"Your top match is **{top['title']}** at **{top['company']}**"
+                            f"{f' (gaps: {missing})' if missing_list else ''}. "
+                            "Which role interests you?"
+                        )
+                    else:
+                        suggestion = f"{prefix}I found {n_jobs} job matches! Which one interests you?"
+
+                    # Only show chips for jobs with score > 0
+                    job_suggestions = []
+                    for j in scored[:5]:
+                        if j.get("score", 0) > 0:
+                            title = j.get("title", "")
+                            company = j.get("company", "")
+                            if title and company:
+                                job_suggestions.append(f"I'm interested in {title} at {company}")
+
+                    msgs.append({
+                        "role": "assistant",
+                        "content": suggestion,
+                        "suggestions": job_suggestions,
+                    })
         elif action == "market_intel":
             selected = state.get("_selected_job") or {}
             title = selected.get("title", "")

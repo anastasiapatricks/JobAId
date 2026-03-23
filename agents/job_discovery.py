@@ -306,8 +306,75 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
         fallback_used.append("fallback_scoring")
 
     top10 = scored[:10]
-    explanations = [f"{j.get('title')} @ {j.get('company')}: {j.get('explanation', '')}" for j in top10]
 
+    # Quality check: if Adzuna returned irrelevant results, auto-retry with resume title
+    avg_top3 = sum(j.get("score", 0) for j in top10[:3]) / max(len(top10[:3]), 1)
+    if avg_top3 < 25 and resume_info:
+        exp = resume_info.get("experience", [])
+        resume_title = (
+            resume_info.get("desired_job_title")
+            or resume_info.get("current_title")
+            or (exp[0].get("title") if exp else "")
+            or ""
+        )
+        if resume_title and resume_title.lower() not in job_query.lower():
+            debug(f"Job Discovery: low quality results (avg={avg_top3:.0f}), retrying with resume title '{resume_title}'")
+            retry_raw = search_jobs(resume_title, location, num_results=15)
+            if retry_raw:
+                for i, j in enumerate(retry_raw):
+                    j["_ref_id"] = f"retry_{i}"
+                retry_text = json.dumps([
+                    {"ref_id": j["_ref_id"], "title": j.get("title"), "company": j.get("company"),
+                     "location": j.get("location"), "keywords": j.get("keywords", []),
+                     "description": j.get("description", "")[:250], "url": j.get("url", "")}
+                    for j in retry_raw
+                ], indent=2)
+                try:
+                    retry_resp = logged_invoke(llm, [
+                        SystemMessage(content=JOB_DISCOVERY_SYSTEM),
+                        HumanMessage(content=(
+                            f"Candidate profile:\n{resume_summary}\n\n"
+                            f"Job query: {spotlight_wrap(resume_title)}\n"
+                            f"Location: {location or 'Any'}\n\n"
+                            f"Job listings:\n{retry_text}\n\n"
+                            f"Score and rank these jobs. Include ref_id for each."
+                        )),
+                    ], "job_ranking_retry")
+                    retry_scored = _parse_json_response(retry_resp.content)
+                    if isinstance(retry_scored, list) and retry_scored:
+                        retry_avg = sum(j.get("score", 0) for j in retry_scored[:3]) / max(len(retry_scored[:3]), 1)
+                        if retry_avg > avg_top3:
+                            debug(f"Job Discovery: retry improved avg score {avg_top3:.0f} → {retry_avg:.0f}")
+                            for item in retry_scored:
+                                item.setdefault("source", retry_raw[0].get("source", "adzuna"))
+                                ref = item.get("ref_id") or ""
+                                match = next((j for j in retry_raw if j.get("_ref_id") == ref), None)
+                                if not match:
+                                    title_k = item.get("title", "").lower()
+                                    match = next((j for j in retry_raw if j.get("title", "").lower() == title_k), None)
+                                if match:
+                                    for f in ("url", "description", "company", "title", "location",
+                                              "salary_min", "salary_max", "created_at", "category", "keywords"):
+                                        if match.get(f):
+                                            item[f] = match[f]
+                            retry_scored.sort(key=lambda x: -x.get("score", 0))
+                            scored = retry_scored
+                            top10 = scored[:10]
+                            raw_jobs = retry_raw
+                            avg_top3 = retry_avg
+                            fallback_used.append("query_reformulated")
+                except Exception as e:
+                    debug(f"Job Discovery: retry failed ({e})")
+
+    # Determine result quality for the chat message
+    if avg_top3 >= 50:
+        quality = "good"
+    elif avg_top3 >= 25:
+        quality = "fair"
+    else:
+        quality = "poor"
+
+    explanations = [f"{j.get('title')} @ {j.get('company')}: {j.get('explanation', '')}" for j in top10]
     lines = [
         f"{i+1}. {j.get('title', '?')} @ {j.get('company', '?')} — {j.get('score', '?')}/100"
         for i, j in enumerate(top10)
@@ -320,6 +387,8 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
         "scored_jobs": top10,
         "matching_explanation": explanations,
         "fallback_used": fallback_used,
+        "result_quality": quality,
+        "original_query": job_query,
     }
 
     valid, issues = validate_job_discovery_output(result)

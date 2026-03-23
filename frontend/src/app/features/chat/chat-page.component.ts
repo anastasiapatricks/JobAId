@@ -683,17 +683,40 @@ export class ChatPageComponent implements OnInit, OnDestroy {
           if (action === 'discovery') {
             const disc = results.results?.filter((r: any) => r.action === 'discovery') || [];
             if (disc.length > 0) {
-              const scored = disc[disc.length - 1].scored_jobs || [];
-              const jobSuggestions = scored.slice(0, 5).map(
-                (j: any) => `I'm interested in ${j.title} at ${j.company}`
-              );
+              const discEntry = disc[disc.length - 1] as any;
+              const scored: any[] = discEntry.scored_jobs || [];
+              const quality: string = discEntry.result_quality || 'good';
+              const originalQuery: string = discEntry.original_query || '';
+              const reformulated: boolean = (discEntry.fallback_used || []).includes('query_reformulated');
 
-              if (jobSuggestions.length > 0) {
+              if (quality === 'poor') {
+                const resumeInfo = results.resume_info as any || {};
+                const exp = resumeInfo.experience || [];
+                const title = resumeInfo.desired_job_title || resumeInfo.current_title
+                  || (exp[0]?.title || '');
+                const tech: string[] = resumeInfo.skills?.technical || [];
+                const searchChips: string[] = [];
+                if (title) searchChips.push(`Find ${title} roles in Singapore`);
+                tech.slice(0, 2).forEach((s: string) => searchChips.push(`Find ${s} jobs in Singapore`));
+                searchChips.push('Find cybersecurity jobs in Singapore');
+
                 const msg: any = {
                   type: 'text',
                   sender: 'system',
-                  text: 'Which role interests you? I\'ll show you a learning plan, salary insights, and draft a cover letter.',
-                  suggestions: jobSuggestions,
+                  text: `I searched for "${originalQuery}" but the job board didn't return strong matches for that query in Singapore — the results shown are the closest available. Try one of the searches below for better results:`,
+                  suggestions: searchChips.slice(0, 5),
+                  completedStages: finalStages,
+                };
+                this.chat['addMessage'](msg);
+              } else {
+                const prefix = reformulated ? 'I refined the search to better match your profile. ' : '';
+                const goodJobs = scored.filter((j: any) => j.score > 0).slice(0, 5);
+                const jobChips = goodJobs.map((j: any) => `I'm interested in ${j.title} at ${j.company}`);
+                const msg: any = {
+                  type: 'text',
+                  sender: 'system',
+                  text: `${prefix}Which role interests you? I'll show you the market research and then draft a cover letter.`,
+                  suggestions: jobChips,
                   completedStages: finalStages,
                 };
                 this.chat['addMessage'](msg);
