@@ -5,7 +5,6 @@ import json
 import re
 from datetime import datetime, timezone
 
-from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
 import logging
@@ -29,6 +28,7 @@ from guardrails.output_filter import (
 )
 from guardrails.input_filter import sanitize_pitch_input, validate_pitch_job_data
 from guardrails.model_router import get_model_for_task
+from guardrails.llm_factory import get_llm
 from tools.tavily_search import search_company, search_company_contact
 from tools.wikipedia import get_company_summary
 from tools.chromadb_tools import search_collection
@@ -205,7 +205,7 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     job_title = best_job.get("title", "the role")
     from agents.orchestrator import get_autonomy
     candidate_summary = _build_candidate_summary(state)
-    llm = ChatOpenAI(model=get_model_for_task("pitch_draft"), temperature=0.7)
+    llm = get_llm(model=get_model_for_task("pitch_draft"), temperature=0.7, task_type="pitch_draft")
 
     draft_pitches = []
 
@@ -359,7 +359,7 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     debug("Pitch Generator: Step 4 — quality review")
     if not get_autonomy().record_llm_call():
         raise RuntimeError("LLM call limit exceeded")
-    review_llm = ChatOpenAI(model=get_model_for_task("pitch_review"), temperature=0.7)
+    review_llm = get_llm(model=get_model_for_task("pitch_review"), temperature=0.7, task_type="pitch_review")
 
     # Provide context so reviewer can verify company details are real
     review_context = (

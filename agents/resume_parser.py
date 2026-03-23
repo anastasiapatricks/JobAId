@@ -3,7 +3,6 @@
 import json
 from typing import Dict, Any
 
-from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
 import logging
@@ -14,6 +13,7 @@ from xai.trace import create_trace
 from guardrails.input_filter import spotlight_wrap, validate_resume_text
 from guardrails.output_filter import validate_resume_output
 from guardrails.model_router import get_model_for_task
+from guardrails.llm_factory import get_llm
 from tools.pii_sanitizer import strip_pii
 from utils import debug
 from utils.llm_logger import logged_invoke
@@ -60,7 +60,7 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     from agents.orchestrator import get_autonomy
-    llm = ChatOpenAI(model=get_model_for_task("resume_parsing"), temperature=0)
+    llm = get_llm(model=get_model_for_task("resume_parsing"), temperature=0, task_type="resume_parsing")
 
     # Step 1: Extract structured resume info
     debug("Resume Parser: extracting structured info via LLM")

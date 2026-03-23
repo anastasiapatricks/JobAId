@@ -4,7 +4,6 @@ import json
 import logging
 from typing import Dict, Any
 
-from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
 from config.settings import settings
@@ -12,6 +11,7 @@ from config.prompts import SUMMARIZER_SYSTEM, SUMMARIZER_PROMPT_VERSION
 from xai.trace import create_trace
 from guardrails.output_filter import check_grounding
 from guardrails.model_router import get_model_for_task
+from guardrails.llm_factory import get_llm
 from utils import debug
 from utils.llm_logger import logged_invoke
 
@@ -47,7 +47,7 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
         from agents.orchestrator import get_autonomy
         if not get_autonomy().record_llm_call():
             raise RuntimeError("LLM call limit exceeded")
-        llm = ChatOpenAI(model=get_model_for_task("summarization"), temperature=0)
+        llm = get_llm(model=get_model_for_task("summarization"), temperature=0, task_type="summarization")
         response = logged_invoke(llm, [
             SystemMessage(content=SUMMARIZER_SYSTEM),
             HumanMessage(content=f"Session data:\n\n{context}\n\nGenerate the final report."),
