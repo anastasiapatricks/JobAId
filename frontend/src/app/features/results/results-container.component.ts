@@ -7,7 +7,6 @@ import { SkillGapsComponent } from './components/skill-gaps.component';
 import { UpskillingRoadmapComponent } from './components/upskilling-roadmap.component';
 import { SalaryInsightsComponent } from './components/salary-insights.component';
 import { CoverLetterComponent } from './components/cover-letter.component';
-import { ExplainabilityPanelComponent } from './components/explainability-panel.component';
 
 @Component({
   selector: 'jobaid-results-container',
@@ -20,7 +19,6 @@ import { ExplainabilityPanelComponent } from './components/explainability-panel.
     UpskillingRoadmapComponent,
     SalaryInsightsComponent,
     CoverLetterComponent,
-    ExplainabilityPanelComponent,
   ],
   template: `
     @if (entry) {
@@ -59,15 +57,6 @@ import { ExplainabilityPanelComponent } from './components/explainability-panel.
           </div>
         </mat-tab>
 
-        @if (hasExplainability()) {
-          <mat-tab label="Explainability">
-            <div class="results-container">
-              <jobaid-explainability-panel
-                [trace]="entry.explainability_trace"
-              />
-            </div>
-          </mat-tab>
-        }
       </mat-tab-group>
     }
   `,
@@ -146,9 +135,5 @@ export class ResultsContainerComponent implements OnChanges {
     const allowed = ResultsContainerComponent.ACTION_SECTIONS[this.action];
     return !allowed || allowed.includes(section);
   }
-
-  hasExplainability(): boolean {
-  return true;
-}
 
 }
