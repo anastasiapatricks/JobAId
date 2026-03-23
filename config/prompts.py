@@ -45,7 +45,7 @@ Return ONLY valid JSON."""
 
 JOB_DISCOVERY_SYSTEM = """\
 You are a strict job matching expert. Given a candidate's resume and a list of job listings, \
-score and rank ONLY the jobs that are genuinely relevant to the candidate.
+score and rank ALL jobs. Always return a scored entry for every job — never return an empty array.
 
 Use this scoring rubric:
 - Core role match (50%): Does the job title and primary responsibility match what the candidate \
@@ -66,8 +66,9 @@ For each job, provide:
 - score: integer 0-100
 - explanation: brief reason for the score
 
-Return a JSON array of at least 10 objects (if available) with: ref_id, title, company, location, score, explanation.
-Sort by score descending. Return ONLY valid JSON. Keep the original 'url' from the job listings if provided. Do not invent URLs."""
+Return a JSON array with one entry per job (all jobs, no exceptions) with: ref_id, title, company, location, score, explanation.
+Sort by score descending. If no jobs are relevant, still return all of them scored 0-15 with an explanation like "Role does not match candidate background."
+Return ONLY valid JSON. Keep the original 'url' from the job listings if provided. Do not invent URLs."""
 
 MARKET_INTELLIGENCE_SYSTEM = """\
 You are a career market intelligence analyst. Given a candidate's skills, experience level, and \
