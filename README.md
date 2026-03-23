@@ -281,7 +281,13 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 │   ├── test_bounded_autonomy.py   # Autonomy limit tests
 │   ├── test_pii_sanitizer.py      # PII sanitization tests
 │   ├── test_health.py             # Health endpoint tests
-│   └── test_sessions.py           # Session lifecycle tests
+│   ├── test_sessions.py           # Session lifecycle tests
+│   ├── test_market_intelligence.py # Market intelligence agent tests
+│   ├── test_xai.py                # Explainability tests
+│   ├── test_skill_triage.py       # Skill triage tests
+│   ├── test_debug_logging.py      # Debug logging tests
+│   ├── test_middleware.py         # Request logging middleware tests
+│   └── test_telemetry.py         # Telemetry endpoint tests
 ├── infra/
 │   ├── main.tf                    # ECR + EC2 + SG + IAM + CloudWatch
 │   ├── cloudfront.tf              # CloudFront CDN distribution (HTTPS)
@@ -440,19 +446,22 @@ uv run pytest tests/ -v
 uv run pytest tests/test_input_filter.py -v
 ```
 
-### Test Suite (210 tests)
+### Test Suite (280 tests)
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
-| `test_input_filter.py` | 47 | Prompt injection (7 patterns), input length limits, spotlight wrapping, adversarial inputs, **content safety (17 harmful blocked, 4 chat blocked, 7 legitimate pass)** |
+| `test_input_filter.py` | 100 | Prompt injection (7 patterns), input length limits, spotlight wrapping, adversarial inputs, **content safety (17 harmful blocked, 4 chat blocked, 7 legitimate pass)** |
 | `test_market_intelligence.py` | 55 | Output validation (14), JSON parsing (6), skill extraction (7), salary lookup (5), XAI explainability (6), hallucination guard (6), agent integration with mocked LLM (6), AI security (5) |
+| `test_output_filter.py` | 37 | Resume/job/pitch/market-intel output validation, grounding score |
 | `test_xai.py` | 22 | ExplainabilityTrace (4), SHAP attribution + description fallback (5), LIME perturbation + description fallback (4), fairness audit — Statistical Parity & Equal Opportunity (6), pitch grounding verification (3) |
-| `test_skill_triage.py` | 14 | Skill matching, case insensitivity, edge cases, no-LLM verification, message format, top-N limiting, deduplication |
-| `test_output_filter.py` | 14 | Resume/job/pitch/market-intel output validation, grounding score |
-| `test_bounded_autonomy.py` | 14 | Iteration limits, per-stage retry limits, LLM call limits, reset |
 | `test_pii_sanitizer.py` | 14 | PII stripping (name, email, phone), gender indicator removal, text sanitization |
-| `test_health.py` | 5 | Health endpoint: status, version, uptime, system checks |
+| `test_bounded_autonomy.py` | 14 | Iteration limits, per-stage retry limits, LLM call limits, reset |
+| `test_skill_triage.py` | 13 | Skill matching, case insensitivity, edge cases, no-LLM verification, message format, top-N limiting, deduplication |
 | `test_sessions.py` | 7 | Session CRUD lifecycle, 404 handling |
+| `test_telemetry.py` | 6 | Telemetry endpoint validation, batch size limits, log output verification |
+| `test_health.py` | 5 | Health endpoint: status, version, uptime, system checks |
+| `test_debug_logging.py` | 4 | Structured debug logging, conditional print, prefix handling |
+| `test_middleware.py` | 3 | Request logging middleware, session ID extraction, query param logging |
 
 ### AI Security Tests
 
