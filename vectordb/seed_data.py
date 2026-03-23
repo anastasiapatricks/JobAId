@@ -78,10 +78,48 @@ def seed_trends():
         debug(f"Seeded {len(documents)} trends")
 
 
+def seed_cover_letters():
+    """Seed the cover_letter_samples collection."""
+    from vectordb.collections import get_cover_letters_collection
+
+    collection = get_cover_letters_collection()
+    if collection.count() > 0:
+        debug("Cover letters collection already seeded, skipping")
+        return
+
+    path = os.path.join(DATA_DIR, "seed_cover_letters.json")
+    if not os.path.exists(path):
+        debug(f"Seed file not found: {path}")
+        return
+
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    samples = data.get("samples", [])
+    documents = []
+    metadatas = []
+    ids = []
+    for i, sample in enumerate(samples):
+        documents.append(sample["content"])
+        metadatas.append({
+            "industry": sample.get("industry", "general"),
+            "role_type": sample.get("role_type", ""),
+            "experience_level": sample.get("experience_level", "mid"),
+            "tone": sample.get("tone", "professional"),
+            "source": sample.get("source", ""),
+        })
+        ids.append(f"cover_letter_{i}")
+
+    if documents:
+        collection.add(documents=documents, metadatas=metadatas, ids=ids)
+        debug(f"Seeded {len(documents)} cover letters")
+
+
 def seed_all():
     """Seed all collections."""
     seed_courses()
     seed_trends()
+    seed_cover_letters()
 
 
 def load_salary_data() -> list:

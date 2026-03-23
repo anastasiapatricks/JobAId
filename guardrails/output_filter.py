@@ -128,6 +128,12 @@ def check_pitch_fabrication(pitch: str) -> Tuple[bool, List[str]]:
     placeholder_patterns = [
         r"\[your name\]",
         r"\[company name\]",
+        r"\[company address\]",
+        r"\[company phone\]",
+        r"\[address\]",
+        r"\[city,?\s*state,?\s*zip",
+        r"\[phone number\]",
+        r"\[phone\]",
         r"\[insert ",
         r"\[fill in",
         r"\[add ",
