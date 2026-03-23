@@ -8,7 +8,15 @@ import threading
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
+
+import re
+
 logger = logging.getLogger("jobaid.api")
+
+_AFFIRMATIVE = re.compile(
+    r"\b(yes|yeah|yep|yup|sure|ok|okay|go ahead|write it|generate|create|do it|please)\b",
+    re.IGNORECASE,
+)
 from models.api_models import (
     PipelineRunRequest,
     PipelineStatusResponse,
@@ -22,6 +30,7 @@ from api.dependencies import get_session, update_session, get_graph
 from agents.orchestrator import reset_autonomy, interpret_user_intent
 from guardrails.input_filter import validate_chat_message
 from utils import get_latest_results
+from utils.explainability import ensure_explainability_trace
 from graph.nodes import (
     resume_parser_node,
     job_discovery_node,
@@ -87,26 +96,25 @@ def _run_single_step(session_id: str, action: str, state: dict):
     set_session_id(session_id)
     logger.info(json.dumps({"event": "step_start", "session_id": session_id, "action": action}))
     try:
-        # When user picks a job for cover letter, auto-run market intel first
-        # so they get learning plan + salary + demand alongside the pitch
-        completed_so_far = {r.get("action") for r in state.get("results", [])}
-        if action == "pitching" and "market_intel" not in completed_so_far:
-            selected = state.get("_selected_job") or {}
-            job_title = selected.get("title", state.get("job_query", ""))
-            if job_title:
-                state["job_query"] = job_title
-                state["current_stage"] = "market_intel"
-                update_session(session_id, status="running", state=state)
-                mi_node = _ACTION_NODES["market_intel"]
-                mi_result = mi_node(state)
-                # Append market intel result
-                results_arr = list(state.get("results", []))
-                mi_entry = {"action": "market_intel", "timestamp": _now_iso()}
-                for k, v in mi_result.items():
-                    if k != "messages":
-                        mi_entry[k] = v
-                results_arr.append(mi_entry)
-                state["results"] = results_arr
+        # Auto-derive job_query from resume when user says "find jobs for my profile"
+        # without specifying a role — prevents 0ms no-op in job_discovery
+        if action == "discovery" and not state.get("job_query"):
+            from utils import get_latest_results
+            latest = get_latest_results(state)
+            resume_info = (latest.get("resume_debiased") or state.get("resume_debiased")
+                           or latest.get("resume_info") or state.get("resume_info") or {})
+            exp = resume_info.get("experience", [])
+            derived = (resume_info.get("desired_job_title")
+                       or resume_info.get("current_title")
+                       or (exp[0].get("title") if exp else "")
+                       or "")
+            if derived:
+                state["job_query"] = derived
+                logger.info(json.dumps({
+                    "event": "job_query_derived",
+                    "session_id": session_id,
+                    "derived_query": derived,
+                }))
 
         node_fn = _ACTION_NODES.get(action)
         if not node_fn:
@@ -174,10 +182,25 @@ def _run_single_step(session_id: str, action: str, state: dict):
                     "suggestions": job_suggestions,
                 }
                 msgs.append(suggestion_msg)
+        elif action == "market_intel":
+            selected = state.get("_selected_job") or {}
+            title = selected.get("title", "")
+            company = selected.get("company", "")
+            if title:
+                state["_awaiting_cv_confirmation"] = True
+                job_label = f"**{title}**" + (f" at **{company}**" if company else "")
+                confirm_msg = (
+                    f"That's the market research for {job_label}. "
+                    f"Would you like me to generate a tailored cover letter for this role?"
+                )
+                msgs.append({
+                    "role": "assistant",
+                    "content": confirm_msg,
+                    "suggestions": ["Yes, write the cover letter"],
+                })
         elif action == "pitching":
             msgs.append({"role": "assistant", "content": (
-                "Your cover letter is ready! You can also ask me to search for "
-                "more jobs, pick another role, or get a session summary."
+                "Your cover letter is ready! Want to pick another role, search for more jobs, or get a session summary?"
             )})
         state["messages"] = msgs
 
@@ -293,12 +316,21 @@ async def step(session_id: str, req: StepRequest):
         "message": req.message[:200],
     }))
 
-    # Let the orchestrator LLM interpret the user's intent
-    intent = interpret_user_intent(req.message, state)
-    action = intent.get("action", "chitchat")
-    response_text = intent.get("response_text", "")
-    logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
-    parameters = intent.get("parameters") or {}
+    # If we're waiting for CV confirmation, intercept affirmative replies without
+    # going to the LLM — the LLM keeps re-routing job names back to market_intel
+    if state.get("_awaiting_cv_confirmation") and _AFFIRMATIVE.search(req.message):
+        action = "pitching"
+        response_text = "Generating your cover letter now…"
+        parameters = {}
+        state["_awaiting_cv_confirmation"] = False
+        logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action, "via": "cv_confirmation_intercept"}))
+    else:
+        # Let the orchestrator LLM interpret the user's intent
+        intent = interpret_user_intent(req.message, state)
+        action = intent.get("action", "chitchat")
+        response_text = intent.get("response_text", "")
+        logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
+        parameters = intent.get("parameters") or {}
 
     # Persist assistant response to state for future context
     if response_text:
@@ -320,8 +352,8 @@ async def step(session_id: str, req: StepRequest):
     if parameters.get("location_preference"):
         state["location_preference"] = parameters["location_preference"]
 
-    # For pitching: reorder scored_jobs so target is at index 0
-    if action == "pitching":
+    # For market_intel (job selection) and pitching: reorder scored_jobs so target is at index 0
+    if action in ("market_intel", "pitching"):
         target_idx = parameters.get("target_job_index")
         latest = get_latest_results(state)
         scored_jobs = list(latest.get("scored_jobs") or [])
@@ -330,10 +362,8 @@ async def step(session_id: str, req: StepRequest):
                 target_job = scored_jobs.pop(target_idx)
                 scored_jobs.insert(0, target_job)
         # Store reordered scored_jobs at top level so the agent can read it
-        state["scored_jobs"] = scored_jobs
-
-        # Auto-set job_query for market intel based on selected job
         if scored_jobs:
+            state["scored_jobs"] = scored_jobs
             target = scored_jobs[0]
             state["_selected_job"] = target
             if not state.get("job_query") or state["job_query"] == "":
@@ -394,9 +424,28 @@ async def get_results(session_id: str):
     state = session.get("result") or session.get("state", {})
     raw_results = state.get("results", [])
 
+    # Ensure every result entry has explainability_trace
+    normalized_entries = []
+    for entry in raw_results:
+        payload = dict(entry)
+
+        payload = ensure_explainability_trace(
+            payload,
+            agent_name=payload.get("action", "unknown"),
+            prompt_version=payload.get("prompt_version", "demo"),
+            confidence=float(payload.get("parsing_confidence", 0.75) or 0.75),
+            reasoning=f"{payload.get('action', 'unknown')} completed and returned output.",
+            sources_consulted=payload.get("sources_consulted", []),
+            warnings=payload.get("warnings", []),
+            feature_attributions=payload.get("feature_attributions", {}),
+            grounding_score=payload.get("grounding_score"),
+        )
+
+        normalized_entries.append(payload)
+
     # Convert raw dicts to ResultEntry models
     result_entries = []
-    for entry in raw_results:
+    for entry in normalized_entries:
         result_entries.append(ResultEntry(**entry))
 
     return PipelineResultsResponse(
@@ -405,5 +454,7 @@ async def get_results(session_id: str):
         last_action=state.get("last_action"),
         resume_info=state.get("resume_info"),
         results=result_entries,
-        completed_stages=_get_completed_stages(state)
+        completed_stages=_get_completed_stages(state),
+        selected_job=state.get("_selected_job"),
+        awaiting_cv_confirmation=bool(state.get("_awaiting_cv_confirmation")),
     )

@@ -37,6 +37,9 @@ class ApprovalRequest(BaseModel):
 class ResultEntry(BaseModel):
     action: str
     timestamp: str
+
+    explainability_trace: Optional[Dict[str, Any]] = None
+
     scored_jobs: Optional[List[Dict[str, Any]]] = None
     skill_triage: Optional[List[Dict[str, Any]]] = None
     matching_explanation: Optional[List[str]] = None
@@ -64,6 +67,8 @@ class PipelineResultsResponse(BaseModel):
     resume_info: Optional[Dict[str, Any]] = None
     results: List[ResultEntry] = Field(default_factory=list)
     completed_stages: List[str] = Field(default_factory=list)
+    selected_job: Optional[Dict[str, Any]] = None
+    awaiting_cv_confirmation: bool = False
 
 
 class StepRequest(BaseModel):

@@ -102,8 +102,7 @@ timeout /t 2 /nobreak >nul
 REM --- Start backend ---
 echo.
 echo Starting backend...
-set PYTHONPATH=.
-start "JobAId-Backend" cmd /k "set PYTHONPATH=. && for /f "usebackq tokens=1,* delims==" %%a in (".env") do (set "%%a=%%b") && python -m uvicorn api.app:app --host 0.0.0.0 --port 8000"
+start "JobAId-Backend" cmd /k "run_backend.bat"
 
 echo   Waiting for backend...
 timeout /t 5 /nobreak >nul

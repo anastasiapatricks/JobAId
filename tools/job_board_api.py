@@ -171,7 +171,7 @@ def _search_adzuna_once(query: str, location: str, num_results: int) -> List[Dic
     start = time.time()
     try:
         debug(f"Adzuna: searching for '{query}' in {country}")
-        resp = httpx.get(url, params=params, timeout=10)
+        resp = httpx.get(url, params=params, timeout=10, verify=False)
         resp.raise_for_status()
         data = resp.json()
         results = data.get("results", [])

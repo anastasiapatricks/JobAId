@@ -1,15 +1,18 @@
 import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSidenavModule } from '@angular/material/sidenav';
 import { ChatService } from '../../core/services/chat.service';
 import { SessionService } from '../../core/services/session.service';
 import { PipelineService } from '../../core/services/pipeline.service';
 import { ApiService } from '../../core/services/api.service';
 import { LoggingService } from '../../core/services/logging.service';
+import { XaiDrawerService } from '../../core/services/xai-drawer.service';
 import { MessageListComponent } from './components/message-list.component';
 import { ChatInputComponent } from './components/chat-input.component';
 import { ResumeUploadComponent } from '../resume/resume-upload.component';
 import { AgentSidebarComponent } from './components/agent-sidebar.component';
+import { ExplainabilityPageComponent } from '../explainability/explainability-page.component';
 
 type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 'results';
 
@@ -21,48 +24,67 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
     ChatInputComponent,
     ResumeUploadComponent,
     AgentSidebarComponent,
+    ExplainabilityPageComponent,
     MatSnackBarModule,
-    MatProgressBarModule
+    MatProgressBarModule,
+    MatSidenavModule
   ],
   template: `
-    <div class="chat-layout">
-      <jobaid-agent-sidebar></jobaid-agent-sidebar>
+    <mat-sidenav-container class="sidenav-container">
 
-      <div class="chat-page">
-        <jobaid-message-list
-          [messages]="chat.messages()"
-          [isTyping]="chat.isTyping()"
-          [typingMessage]="typingMessage"
-          (suggestionClicked)="onSuggestionClicked($event)"
-        ></jobaid-message-list>
+      <mat-sidenav
+        #xaiSidenav
+        mode="over"
+        position="end"
+        [opened]="xaiDrawer.isOpen()"
+        (closedStart)="xaiDrawer.close()"
+        class="xai-sidenav"
+      >
+        <jobaid-explainability-panel></jobaid-explainability-panel>
+      </mat-sidenav>
 
-        @if (state === 'running') {
-          <div class="progress-section">
-            <div class="progress-info">
-              <span class="progress-label">{{ typingMessage }}</span>
-              <span class="progress-value">{{ pipelineProgress() }}%</span>
-            </div>
-            <mat-progress-bar mode="determinate" [value]="pipelineProgress()"></mat-progress-bar>
+      <mat-sidenav-content>
+        <div class="chat-layout">
+          <jobaid-agent-sidebar></jobaid-agent-sidebar>
+
+          <div class="chat-page">
+            <jobaid-message-list
+              [messages]="chat.messages()"
+              [isTyping]="chat.isTyping()"
+              [typingMessage]="typingMessage"
+              (suggestionClicked)="onSuggestionClicked($event)"
+            ></jobaid-message-list>
+
+            @if (state === 'running') {
+              <div class="progress-section">
+                <div class="progress-info">
+                  <span class="progress-label">{{ typingMessage }}</span>
+                  <span class="progress-value">{{ pipelineProgress() }}%</span>
+                </div>
+                <mat-progress-bar mode="determinate" [value]="pipelineProgress()"></mat-progress-bar>
+              </div>
+            }
+
+            @if (state === 'awaiting_resume') {
+              <div class="upload-section">
+                <jobaid-resume-upload
+                  (fileUploaded)="onFileUploaded($event)"
+                  (textPasted)="onResumePasted($event)"
+                ></jobaid-resume-upload>
+              </div>
+            }
+
+            @if (state !== 'awaiting_resume') {
+              <jobaid-chat-input
+                (messageSent)="onMessageSent($event)"
+                (fileSelected)="onFileUploaded($event)"
+              ></jobaid-chat-input>
+            }
           </div>
-        }
+        </div>
+      </mat-sidenav-content>
 
-        @if (state === 'awaiting_resume') {
-          <div class="upload-section">
-            <jobaid-resume-upload
-              (fileUploaded)="onFileUploaded($event)"
-              (textPasted)="onResumePasted($event)"
-            ></jobaid-resume-upload>
-          </div>
-        }
-
-        @if (state !== 'awaiting_resume') {
-          <jobaid-chat-input
-            (messageSent)="onMessageSent($event)"
-            (fileSelected)="onFileUploaded($event)"
-          ></jobaid-chat-input>
-        }
-      </div>
-    </div>
+    </mat-sidenav-container>
   `,
   styles: `
     :host {
@@ -70,6 +92,19 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
       flex-direction: column;
       flex: 1;
       overflow: hidden;
+    }
+    .sidenav-container {
+      flex: 1;
+      height: 100%;
+    }
+    mat-sidenav-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .xai-sidenav {
+      width: 420px;
+      max-width: 90vw;
     }
     .chat-layout {
       display: flex;
@@ -120,6 +155,7 @@ type ChatState = 'welcome' | 'awaiting_resume' | 'running' | 'awaiting_input' | 
 })
 export class ChatPageComponent implements OnInit, OnDestroy {
   protected readonly chat = inject(ChatService);
+  protected readonly xaiDrawer = inject(XaiDrawerService);
   private readonly session = inject(SessionService);
   private readonly pipeline = inject(PipelineService);
   private readonly api = inject(ApiService);
@@ -133,6 +169,20 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   private progressInterval?: any;
 
   ngOnInit(): void {
+    // If a session is already active, restore state instead of wiping the chat
+    const status = this.session.sessionStatus();
+    if (this.session.hasSession() && status !== 'none' && status !== 'error') {
+      this.resumeText = ''; // resumeText is in-memory only; pipeline already has it
+      if (status === 'running') {
+        this.state = 'running';
+      } else if (status === 'awaiting_input') {
+        this.state = 'awaiting_input';
+      } else if (status === 'complete') {
+        this.state = 'results';
+      }
+      return;
+    }
+
     this.chat.clear();
     this.chat.addWelcome();
     this.state = 'awaiting_resume';
@@ -649,6 +699,56 @@ export class ChatPageComponent implements OnInit, OnDestroy {
                 this.chat['addMessage'](msg);
               }
             }
+          } else if (action === 'market_intel') {
+            const selected = results.selected_job || null;
+            if (selected?.['title']) {
+              // Job-specific market intel — prompt to generate cover letter
+              const title: string = selected['title'] as string;
+              const company: string = (selected['company'] as string) || '';
+              const jobLabel = company ? `${title} at ${company}` : title;
+              const msg: any = {
+                type: 'text',
+                sender: 'system',
+                text: `Here's the market research for ${jobLabel}. Would you like me to generate a tailored cover letter for this role?`,
+                suggestions: ['Yes, write the cover letter'],
+                completedStages: finalStages,
+              };
+              this.chat['addMessage'](msg);
+            } else {
+              // General market intel — prompt next action
+              const allResults = results.results || [];
+              const discResult = [...allResults].reverse().find((r: any) => r.action === 'discovery');
+              const scoredJobs: any[] = discResult?.scored_jobs || [];
+              const jobChips = scoredJobs.slice(0, 3).map(
+                (j: any) => `I'm interested in ${j.title} at ${j.company}`
+              );
+              const msg: any = {
+                type: 'text',
+                sender: 'system',
+                text: 'Would you like to explore a specific role for a cover letter, or search for new jobs?',
+                suggestions: [...jobChips, 'Find more jobs', 'Summarize my session'],
+                completedStages: finalStages,
+              };
+              this.chat['addMessage'](msg);
+            }
+          } else if (action === 'pitching') {
+            const msg: any = {
+              type: 'text',
+              sender: 'system',
+              text: 'Your cover letter is ready! What would you like to do next?',
+              suggestions: ['Find more jobs', 'Summarize my session', 'Pick another role'],
+              completedStages: finalStages,
+            };
+            this.chat['addMessage'](msg);
+          } else if (action === 'summarizing') {
+            const msg: any = {
+              type: 'text',
+              sender: 'system',
+              text: "That's your session summary. Would you like to search for more jobs or explore another role?",
+              suggestions: ['Find more jobs', 'Find jobs for my profile'],
+              completedStages: finalStages,
+            };
+            this.chat['addMessage'](msg);
           }
 
           this.state = 'awaiting_input';

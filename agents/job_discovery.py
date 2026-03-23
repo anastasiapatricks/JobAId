@@ -13,7 +13,10 @@ from langchain.schema import SystemMessage, HumanMessage
 import logging
 
 from config.settings import settings
-from config.prompts import JOB_DISCOVERY_SYSTEM
+from config.prompts import JOB_DISCOVERY_SYSTEM, JOB_DISCOVERY_PROMPT_VERSION
+from xai.trace import create_trace
+from xai.explainers import shap_skill_attribution, lime_job_explanation
+from xai.fairness import statistical_parity_check, equal_opportunity_check
 from guardrails.input_filter import validate_job_query, spotlight_wrap
 from guardrails.output_filter import validate_job_discovery_output
 from guardrails.model_router import get_model_for_task
@@ -215,6 +218,40 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
             HumanMessage(content=user_prompt),
         ], "job_ranking")
         scored = _parse_json_response(response.content)
+        # If LLM returned empty (all jobs irrelevant), retry with resume job title
+        if not (isinstance(scored, list) and scored):
+            exp = resume_info.get("experience", [])
+            job_title = (resume_info.get("desired_job_title") or resume_info.get("current_title")
+                         or (exp[0].get("title") if exp else "") or "")
+            if job_title and job_title.lower() != job_query.lower():
+                debug(f"Job Discovery: LLM scored nothing, retrying with resume title '{job_title}'")
+                retry_jobs = search_jobs(job_title, location, num_results=15)
+                if retry_jobs and retry_jobs[0].get("source") != "mock":
+                    raw_jobs = retry_jobs
+                    source = "adzuna"
+                    # rebuild jobs_text and re-ask
+                    for i, j in enumerate(raw_jobs):
+                        j["_ref_id"] = f"job_{i}"
+                    jobs_text = json.dumps([
+                        {"ref_id": j["_ref_id"], "title": j.get("title"), "company": j.get("company"),
+                         "location": j.get("location"), "keywords": j.get("keywords", []),
+                         "description": j.get("description", "")[:250], "url": j.get("url", ""),
+                         "salary_min": j.get("salary_min"), "salary_max": j.get("salary_max"),
+                         "created_at": j.get("created_at"), "category": j.get("category")}
+                        for j in raw_jobs
+                    ], indent=2)
+                    user_prompt2 = (
+                        f"Candidate profile:\n{resume_summary}\n\n"
+                        f"Job query: {spotlight_wrap(job_title)}\n"
+                        f"Location preference: {location or 'Any'}\n\n"
+                        f"Job listings:\n{jobs_text}\n\n"
+                        f"Score and rank these jobs for this candidate. Include the 'ref_id' for each job in your response."
+                    )
+                    response2 = logged_invoke(llm, [
+                        SystemMessage(content=JOB_DISCOVERY_SYSTEM),
+                        HumanMessage(content=user_prompt2),
+                    ], "job_ranking")
+                    scored = _parse_json_response(response2.content)
         if isinstance(scored, list) and scored:
             # Ensure all required fields
             for item in scored:
@@ -295,5 +332,86 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
             "agent": "job_discovery",
             "issues": issues,
         }))
+
+    # --- XAI: Build comprehensive candidate skill list ---
+    # Include parsed skills + domain terms from resume text so SHAP/LIME
+    # can match against domain-level job keywords like "incident response"
+    candidate_skills_raw = resume_info.get("skills", {})
+    if isinstance(candidate_skills_raw, dict):
+        candidate_skill_list = (
+            candidate_skills_raw.get("technical", [])
+            + candidate_skills_raw.get("soft", [])
+            + candidate_skills_raw.get("certifications", [])
+        )
+    elif isinstance(candidate_skills_raw, list):
+        candidate_skill_list = candidate_skills_raw
+    else:
+        candidate_skill_list = []
+
+    # Extract domain terms from resume summary + experience descriptions
+    # so we match "incident response", "malware analysis" etc., not just tool names
+    _resume_full = resume_info or {}
+    _resume_text_parts = [
+        _resume_full.get("professional_summary", ""),
+        " ".join(
+            e.get("description", "") for e in _resume_full.get("experience", [])
+            if isinstance(e, dict)
+        ),
+    ]
+    _resume_text = " ".join(_resume_text_parts)
+    if _resume_text.strip():
+        try:
+            from tools.job_board_api import _extract_keywords_from_text
+            _domain_terms = _extract_keywords_from_text(_resume_text)
+            # Add domain terms not already in skill list
+            _existing_lower = {s.lower() for s in candidate_skill_list}
+            for term in _domain_terms:
+                if term.lower() not in _existing_lower:
+                    candidate_skill_list.append(term)
+        except ImportError:
+            pass
+
+    shap_attributions = {}
+    for job in top10[:5]:
+        job_key = f"{job.get('title', '?')} @ {job.get('company', '?')}"
+        shap_attributions[job_key] = shap_skill_attribution(
+            candidate_skill_list,
+            job.get("keywords", []),
+            job_description=f"{job.get('title', '')} {job.get('description', '')}",
+        )
+    result["shap_attributions"] = shap_attributions
+
+    # --- XAI: LIME-like explanation for the top job ---
+    lime_explanations = []
+    if top10:
+        top_job = top10[0]
+        lime_explanations = lime_job_explanation(
+            candidate_skill_list,
+            top_job.get("keywords", []),
+            top_n=5,
+            job_description=f"{top_job.get('title', '')} {top_job.get('description', '')}",
+        )
+    result["lime_explanations"] = lime_explanations
+
+    # --- XAI: Fairness audit ---
+    candidate_location = state.get("location_preference", "")
+    result["fairness_audit"] = {
+        "statistical_parity": statistical_parity_check(top10, candidate_location),
+        "equal_opportunity": equal_opportunity_check(top10, candidate_location),
+    }
+
+    # --- XAI: Explainability trace ---
+    xai_warnings = list(fallback_used)
+    result["explainability_trace"] = create_trace(
+        agent_name="job_discovery",
+        prompt_version=JOB_DISCOVERY_PROMPT_VERSION,
+        confidence=top10[0].get("score", 0) / 100.0 if top10 else 0.0,
+        reasoning=f"Ranked {len(top10)} jobs from {len(raw_jobs)} candidates; source={source}",
+        feature_attributions={"top_job_shap": shap_attributions.get(
+            f"{top10[0].get('title', '?')} @ {top10[0].get('company', '?')}", {}
+        ) if top10 else {}},
+        sources_consulted=[source, "chromadb"] if semantic_results else [source],
+        warnings=xai_warnings,
+    ).to_dict()
 
     return result

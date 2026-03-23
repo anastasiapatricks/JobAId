@@ -9,7 +9,8 @@ from langchain.schema import SystemMessage, HumanMessage
 import logging
 
 from config.settings import settings
-from config.prompts import RESUME_PARSER_SYSTEM, RESUME_PARSER_CONFIDENCE
+from config.prompts import RESUME_PARSER_SYSTEM, RESUME_PARSER_CONFIDENCE, RESUME_PARSER_PROMPT_VERSION
+from xai.trace import create_trace
 from guardrails.input_filter import spotlight_wrap, validate_resume_text
 from guardrails.output_filter import validate_resume_output
 from guardrails.model_router import get_model_for_task
@@ -127,6 +128,29 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
             "agent": "resume_parser",
             "issues": issues,
         }))
+
+    # --- XAI: Explainability trace ---
+    xai_warnings = []
+    if confidence < 0.7:
+        xai_warnings.append(f"Low parsing confidence ({confidence:.0%})")
+    if missing_fields:
+        xai_warnings.append(f"Missing fields: {', '.join(missing_fields[:5])}")
+    attributions = {
+        "contact_info": 1.0 if resume_info.get("contact_info", {}).get("name") else 0.0,
+        "skills": 1.0 if tech_skills else 0.0,
+        "experience": 1.0 if resume_info.get("experience") else 0.0,
+        "education": 1.0 if resume_info.get("education") else 0.0,
+    }
+    extraction_source = "llm" if resume_info and not (len(resume_info.get("skills", {}).get("technical", [])) == 0 and resume_info.get("years_of_experience") is None) else "regex_fallback"
+    result["explainability_trace"] = create_trace(
+        agent_name="resume_parser",
+        prompt_version=RESUME_PARSER_PROMPT_VERSION,
+        confidence=confidence,
+        reasoning=f"Extracted via {extraction_source}; {len(tech_skills)} skills, {yoe or 0} yrs experience",
+        feature_attributions=attributions,
+        sources_consulted=[extraction_source],
+        warnings=xai_warnings,
+    ).to_dict()
 
     return result
 

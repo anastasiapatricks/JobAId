@@ -10,6 +10,7 @@ from langchain.schema import SystemMessage, HumanMessage
 
 from config.settings import settings
 from config.prompts import MARKET_INTELLIGENCE_SYSTEM, MARKET_INTELLIGENCE_PROMPT_VERSION
+from xai.trace import create_trace
 from guardrails.input_filter import validate_job_query
 from guardrails.output_filter import validate_market_intel_output
 from guardrails.model_router import get_model_for_task
@@ -447,6 +448,45 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
         f"Trends: {len(industry_trends)}."
     )
 
+    # --- XAI: Explainability trace ---
+    total_courses = sum(len(item.get("verified_courses", [])) for item in upskilling_roadmap)
+    grounded_courses = sum(
+        1 for item in upskilling_roadmap
+        for vc in item.get("verified_courses", [])
+        if vc.get("source_verified")
+    )
+    overall_grounding = grounded_courses / max(total_courses, 1)
+    xai_warnings = []
+    if overall_grounding < 0.5:
+        xai_warnings.append(f"Low course grounding: {grounded_courses}/{total_courses} verified")
+    if not valid:
+        xai_warnings.extend(issues)
+
+    sources = []
+    if courses_context:
+        sources.append("tavily_courses" if "Available courses" not in (courses_context or "") else "chromadb_courses")
+    if trends_context:
+        sources.append("tavily_trends" if "Industry trends" not in (trends_context or "") else "chromadb_trends")
+    if salary_insights.get("source") == "seed_data":
+        sources.append("seed_salary_data")
+    if salary_web_context:
+        sources.append("tavily_salary")
+    sources.append("llm")
+
+    explainability_trace = create_trace(
+        agent_name="market_intelligence",
+        prompt_version=MARKET_INTELLIGENCE_PROMPT_VERSION,
+        confidence=overall_grounding,
+        reasoning=f"{len(skill_gaps)} gaps, {len(upskilling_roadmap)} courses, {grounded_courses}/{total_courses} grounded",
+        feature_attributions={"skill_gaps_with_explanations": [
+            {"skill": g.get("skill"), "explanation": g.get("explanation", "")}
+            for g in skill_gaps[:5]
+        ]},
+        grounding_score=overall_grounding,
+        sources_consulted=sources,
+        warnings=xai_warnings,
+    ).to_dict()
+
     return {
         "messages": [{"role": "assistant", "content": msg}],
         "skill_gaps": skill_gaps,
@@ -454,4 +494,5 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
         "salary_insights": salary_insights,
         "industry_trends": industry_trends,
         "market_outlook": market_outlook,
+        "explainability_trace": explainability_trace,
     }

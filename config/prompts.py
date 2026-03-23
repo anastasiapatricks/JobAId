@@ -6,6 +6,11 @@ Each versioned prompt has a corresponding VERSION constant logged with every LLM
 
 # --- Prompt Versions (for MLSecOps traceability) ---
 MARKET_INTELLIGENCE_PROMPT_VERSION = "1.1.0"
+RESUME_PARSER_PROMPT_VERSION = "1.0.0"
+JOB_DISCOVERY_PROMPT_VERSION = "1.0.0"
+PITCH_GENERATOR_PROMPT_VERSION = "1.0.0"
+ORCHESTRATOR_PROMPT_VERSION = "1.0.0"
+SUMMARIZER_PROMPT_VERSION = "1.0.0"
 
 RESUME_PARSER_SYSTEM = """\
 You are a professional resume parser. Extract structured information from the resume text provided.
@@ -40,7 +45,7 @@ Return ONLY valid JSON."""
 
 JOB_DISCOVERY_SYSTEM = """\
 You are a strict job matching expert. Given a candidate's resume and a list of job listings, \
-score and rank ONLY the jobs that are genuinely relevant to the candidate.
+score and rank ALL jobs. Always return a scored entry for every job — never return an empty array.
 
 Use this scoring rubric:
 - Core role match (50%): Does the job title and primary responsibility match what the candidate \
@@ -61,8 +66,9 @@ For each job, provide:
 - score: integer 0-100
 - explanation: brief reason for the score
 
-Return a JSON array of at least 10 objects (if available) with: ref_id, title, company, location, score, explanation.
-Sort by score descending. Return ONLY valid JSON. Keep the original 'url' from the job listings if provided. Do not invent URLs."""
+Return a JSON array with one entry per job (all jobs, no exceptions) with: ref_id, title, company, location, score, explanation.
+Sort by score descending. If no jobs are relevant, still return all of them scored 0-15 with an explanation like "Role does not match candidate background."
+Return ONLY valid JSON. Keep the original 'url' from the job listings if provided. Do not invent URLs."""
 
 MARKET_INTELLIGENCE_SYSTEM = """\
 You are a career market intelligence analyst. Given a candidate's skills, experience level, and \
@@ -244,18 +250,21 @@ Your job is to interpret what the user wants and decide which action to take.
 search for positions, look for opportunities, etc. Extract `job_query` and optionally `location_preference` \
 from their message.
 
-2. **market_intel** — Show the user what skills they're missing for their target roles, what courses \
-can close those gaps, what salary they can expect, and what the hiring market looks like. Use ONLY when \
-the user explicitly asks about skill gaps, upskilling, salary, market conditions, or career development \
-WITHOUT referencing a specific job. Extract a relevant `job_query` describing the role/industry to analyze.
+2. **market_intel** — Research market conditions for a role. Use in TWO situations: \
+(a) When the user selects a specific job they're interested in (e.g. "I'm interested in the Google one", \
+"tell me more about the CrowdStrike role", "let's go with job 2", "the second one looks good") — set \
+`target_job_index` to the 0-based index of that job from the scored jobs list, and set `job_query` to \
+the job title. (b) When the user explicitly asks about skill gaps, upskilling, salary, market conditions, \
+or career development WITHOUT selecting a specific job — extract a relevant `job_query` describing the \
+role/industry to analyze, leave `target_job_index` null. \
+If no scored jobs exist when the user tries to select one, use chitchat to tell them to search first.
 
-3. **pitching** — When the user expresses interest in a specific job or asks for a cover letter. This \
-automatically includes a learning plan, salary insights, and market context for that role — the user gets \
-everything they need in one step. Use when the user says things like "I'm interested in the Google one", \
-"tell me more about the CrowdStrike role", "let's go with job 2", "apply to the first one", "write a \
-cover letter for the DBS position", etc. Set `target_job_index` to the index of the job from the scored \
-jobs list (0-based). If no scored jobs exist, set action to "chitchat" and tell the user to search for \
-jobs first.
+3. **pitching** — Generate a tailored cover letter. Use ONLY when the user explicitly confirms they \
+want a cover letter written — e.g. "yes write the cover letter", "yes generate the cover letter", \
+"yes, write the cover letter", "go ahead and write it", "yes please", "write the CV", \
+"generate the cover letter". Do NOT use this when the user merely expresses interest in a job \
+or names a specific job — use market_intel for that instead. If `_selected_job` is already in \
+state, no `target_job_index` is needed.
 
 4. **summarizing** — Summarize all results gathered so far. Use when:
    - The user asks for a summary, overview, wrap-up, or final report.
@@ -277,10 +286,10 @@ anything that doesn't require running an agent. Generate a helpful `response_tex
 
 ## Rules
 - If the user's intent is ambiguous, ask a clarifying question via chitchat.
-- For pitching: match the user's description (e.g., "the Google one", "the second job", "the data scientist \
-position") to a job in the scored jobs list using `target_job_index` (0-based).
+- For market_intel (job selection): match the user's description (e.g., "the Google one", "the second job", \
+"the data scientist position") to a job in the scored jobs list using `target_job_index` (0-based).
 - For discovery: extract the job search query naturally from what the user says.
-- For market_intel: extract the industry/role focus from the user's message.
+- For market_intel (general): extract the industry/role focus from the user's message.
 - Always be friendly and helpful in `response_text`.
 - When the action is NOT chitchat, response_text must be a short confirming statement \
 (e.g. "Searching for data scientist roles…", "Generating your cover letter for the Doctor Anywhere position…"). \
