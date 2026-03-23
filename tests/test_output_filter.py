@@ -6,6 +6,11 @@ from guardrails.output_filter import (
     validate_job_discovery_output,
     validate_pitch_output,
     check_grounding,
+    check_pitch_pii_leakage,
+    check_pitch_professionalism,
+    check_pitch_grounding,
+    check_pitch_fabrication,
+    MAX_PITCH_LENGTH,
 )
 
 
@@ -122,3 +127,130 @@ class TestCheckGrounding:
     def test_empty_state(self):
         score = check_grounding("Some summary text", {})
         assert score == 1.0  # Nothing to check
+
+
+class TestValidatePitchMaxLength:
+    """Test pitch max length guardrail."""
+
+    def test_pitch_exceeds_max_length(self):
+        long_pitch = "A" * (MAX_PITCH_LENGTH + 1)
+        valid, issues = validate_pitch_output({"final_pitch": long_pitch})
+        assert not valid
+        assert any("max length" in i for i in issues)
+
+    def test_pitch_within_max_length(self):
+        pitch = "Dear Hiring Manager, I am writing to express my interest. " * 10
+        valid, issues = validate_pitch_output({"final_pitch": pitch})
+        assert valid
+
+
+class TestCheckPitchPiiLeakage:
+    """Test PII leakage detection in generated pitch."""
+
+    def test_clean_pitch(self):
+        pitch = "I am excited to apply for this role at Google. My experience in Python makes me a strong fit."
+        ok, issues = check_pitch_pii_leakage(pitch)
+        assert ok
+        assert issues == []
+
+    def test_email_leakage(self):
+        pitch = "Please contact me at john.doe@example.com for further discussion."
+        ok, issues = check_pitch_pii_leakage(pitch)
+        assert not ok
+        assert any("email" in i for i in issues)
+
+    def test_phone_leakage(self):
+        pitch = "You can reach me at +65 9123 4567 any time."
+        ok, issues = check_pitch_pii_leakage(pitch)
+        assert not ok
+        assert any("phone" in i for i in issues)
+
+    def test_both_pii_types(self):
+        pitch = "Email: test@corp.com, Phone: 91234567."
+        ok, issues = check_pitch_pii_leakage(pitch)
+        assert not ok
+        assert len(issues) == 2
+
+
+class TestCheckPitchProfessionalism:
+    """Test professionalism check on generated pitch."""
+
+    def test_professional_pitch(self):
+        pitch = "I am eager to bring my expertise in cloud computing to your team at Amazon Web Services."
+        ok, issues = check_pitch_professionalism(pitch)
+        assert ok
+        assert issues == []
+
+    def test_offensive_language(self):
+        pitch = "This damn job is exactly what I need, no bullshit."
+        ok, issues = check_pitch_professionalism(pitch)
+        assert not ok
+        assert any("unprofessional" in i for i in issues)
+
+    def test_informal_internet_slang(self):
+        pitch = "lol I would be a great fit for this role omg."
+        ok, issues = check_pitch_professionalism(pitch)
+        assert not ok
+        assert any("unprofessional" in i for i in issues)
+
+
+class TestCheckPitchGrounding:
+    """Test that pitch references actual candidate skills."""
+
+    def test_well_grounded_pitch(self):
+        pitch = "My experience with Python, AWS, and Docker has prepared me well for this role."
+        skills = ["Python", "AWS", "Docker", "Kubernetes"]
+        score, warnings = check_pitch_grounding(pitch, skills)
+        assert score >= 0.5
+        assert warnings == []
+
+    def test_poorly_grounded_pitch(self):
+        pitch = "I am a great candidate who would love to work at your company."
+        skills = ["Python", "AWS", "Docker", "Kubernetes", "React"]
+        score, warnings = check_pitch_grounding(pitch, skills)
+        assert score < 0.3
+        assert any("fabricated" in w for w in warnings)
+
+    def test_no_skills_to_check(self):
+        pitch = "Generic cover letter content here."
+        score, warnings = check_pitch_grounding(pitch, [])
+        assert score == 1.0
+        assert warnings == []
+
+    def test_partial_grounding(self):
+        pitch = "My Python expertise and Docker knowledge make me an ideal candidate."
+        skills = ["Python", "Docker", "AWS", "Kubernetes", "Java", "React"]
+        score, warnings = check_pitch_grounding(pitch, skills)
+        assert 0.3 <= score < 1.0
+
+
+class TestCheckPitchFabrication:
+    """Test fabrication/hallucination detection in pitch."""
+
+    def test_clean_pitch(self):
+        pitch = "I am excited to apply for the Software Engineer role at Google."
+        ok, issues = check_pitch_fabrication(pitch)
+        assert ok
+        assert issues == []
+
+    def test_placeholder_your_name(self):
+        pitch = "Dear Hiring Manager, [Your Name] is writing to apply."
+        ok, issues = check_pitch_fabrication(pitch)
+        assert not ok
+        assert any("placeholder" in i for i in issues)
+
+    def test_placeholder_insert(self):
+        pitch = "I have [insert number] years of experience in the field."
+        ok, issues = check_pitch_fabrication(pitch)
+        assert not ok
+        assert any("placeholder" in i for i in issues)
+
+    def test_placeholder_hiring_manager(self):
+        pitch = "Dear [Hiring Manager], I am writing to express my interest."
+        ok, issues = check_pitch_fabrication(pitch)
+        assert not ok
+
+    def test_placeholder_company_name(self):
+        pitch = "I am thrilled to apply to [Company Name] for the role."
+        ok, issues = check_pitch_fabrication(pitch)
+        assert not ok
