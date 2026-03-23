@@ -87,8 +87,13 @@ jobs:
             export ECR_BACKEND_URL=${{ steps.ecr.outputs.registry }}/jobaid-backend
             export ECR_FRONTEND_URL=${{ steps.ecr.outputs.registry }}/jobaid-frontend
 
-            # Pull latest images and restart
             cd /home/ec2-user
+
+            # Save current running image IDs for rollback
+            OLD_BACKEND=$(docker inspect --format='{{.Image}}' $(docker compose -f docker-compose.prod.yml ps -q backend) 2>/dev/null || echo "")
+            OLD_FRONTEND=$(docker inspect --format='{{.Image}}' $(docker compose -f docker-compose.prod.yml ps -q frontend) 2>/dev/null || echo "")
+
+            # Pull latest images and restart
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
@@ -101,8 +106,20 @@ jobs:
               echo "Attempt $i/30: Health check not ready, waiting 10s..."
               sleep 10
             done
-            echo "Health check failed after 5 minutes"
+
+            # Health check failed — rollback to previous version
+            echo "Health check failed after 5 minutes, rolling back..."
             docker compose -f docker-compose.prod.yml logs --tail=50
+            docker compose -f docker-compose.prod.yml down
+
+            if [ -n "$OLD_BACKEND" ] && [ -n "$OLD_FRONTEND" ]; then
+              docker tag "$OLD_BACKEND" ${ECR_BACKEND_URL}:latest
+              docker tag "$OLD_FRONTEND" ${ECR_FRONTEND_URL}:latest
+              docker compose -f docker-compose.prod.yml up -d
+              echo "Rollback complete — restored previous version"
+            else
+              echo "No previous images to rollback to"
+            fi
             exit 1
 
       - name: Invalidate CloudFront cache
