@@ -101,6 +101,8 @@ jobs:
             for i in $(seq 1 30); do
               if curl -sf http://localhost/api/health; then
                 echo "Health check passed!"
+                # Clean up old unused Docker images to prevent disk filling up
+                docker image prune -af --filter "until=72h"
                 exit 0
               fi
               echo "Attempt $i/30: Health check not ready, waiting 10s..."
