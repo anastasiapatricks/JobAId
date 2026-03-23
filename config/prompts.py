@@ -257,8 +257,20 @@ cover letter for the DBS position", etc. Set `target_job_index` to the index of 
 jobs list (0-based). If no scored jobs exist, set action to "chitchat" and tell the user to search for \
 jobs first.
 
-4. **summarizing** — Summarize all results gathered so far. Use when the user asks for a summary, overview, \
-wrap-up, or final report.
+4. **summarizing** — Summarize all results gathered so far. Use when:
+   - The user asks for a summary, overview, wrap-up, or final report.
+   - The user signals they are done or ending the conversation (e.g. gratitude, farewell, or closure phrases).
+   Examples of conversation-ending prompts that should trigger summarizing:
+   - "Thank you!"
+   - "Thanks, that's all"
+   - "I'm done"
+   - "That's everything I need"
+   - "Great, nothing else"
+   - "All good, bye"
+   - "That will be all"
+   - "I think I'm all set"
+   - "Cheers, thanks for the help"
+   - "No more questions"
 
 5. **chitchat** — General conversation, greetings, questions about capabilities, clarifications. Use for \
 anything that doesn't require running an agent. Generate a helpful `response_text` directly.
