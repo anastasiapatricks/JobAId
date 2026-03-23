@@ -89,27 +89,6 @@ def _run_single_step(session_id: str, action: str, state: dict):
     set_session_id(session_id)
     logger.info(json.dumps({"event": "step_start", "session_id": session_id, "action": action}))
     try:
-        # When user picks a job for cover letter, auto-run market intel first
-        # so they get learning plan + salary + demand alongside the pitch
-        completed_so_far = {r.get("action") for r in state.get("results", [])}
-        if action == "pitching" and "market_intel" not in completed_so_far:
-            selected = state.get("_selected_job") or {}
-            job_title = selected.get("title", state.get("job_query", ""))
-            if job_title:
-                state["job_query"] = job_title
-                state["current_stage"] = "market_intel"
-                update_session(session_id, status="running", state=state)
-                mi_node = _ACTION_NODES["market_intel"]
-                mi_result = mi_node(state)
-                # Append market intel result
-                results_arr = list(state.get("results", []))
-                mi_entry = {"action": "market_intel", "timestamp": _now_iso()}
-                for k, v in mi_result.items():
-                    if k != "messages":
-                        mi_entry[k] = v
-                results_arr.append(mi_entry)
-                state["results"] = results_arr
-
         # Auto-derive job_query from resume when user says "find jobs for my profile"
         # without specifying a role — prevents 0ms no-op in job_discovery
         if action == "discovery" and not state.get("job_query"):
@@ -196,10 +175,24 @@ def _run_single_step(session_id: str, action: str, state: dict):
                     "suggestions": job_suggestions,
                 }
                 msgs.append(suggestion_msg)
+        elif action == "market_intel":
+            selected = state.get("_selected_job") or {}
+            title = selected.get("title", "")
+            company = selected.get("company", "")
+            if title:
+                job_label = f"**{title}**" + (f" at **{company}**" if company else "")
+                confirm_msg = (
+                    f"That's the market research for {job_label}. "
+                    f"Would you like me to generate a tailored cover letter for this role?"
+                )
+                msgs.append({
+                    "role": "assistant",
+                    "content": confirm_msg,
+                    "suggestions": [f"Yes, generate a cover letter for {title}{f' at {company}' if company else ''}"],
+                })
         elif action == "pitching":
             msgs.append({"role": "assistant", "content": (
-                "Your cover letter is ready! You can also ask me to search for "
-                "more jobs, pick another role, or get a session summary."
+                "Your cover letter is ready! Want to pick another role, search for more jobs, or get a session summary?"
             )})
         state["messages"] = msgs
 
@@ -342,8 +335,8 @@ async def step(session_id: str, req: StepRequest):
     if parameters.get("location_preference"):
         state["location_preference"] = parameters["location_preference"]
 
-    # For pitching: reorder scored_jobs so target is at index 0
-    if action == "pitching":
+    # For market_intel (job selection) and pitching: reorder scored_jobs so target is at index 0
+    if action in ("market_intel", "pitching"):
         target_idx = parameters.get("target_job_index")
         latest = get_latest_results(state)
         scored_jobs = list(latest.get("scored_jobs") or [])
@@ -352,10 +345,8 @@ async def step(session_id: str, req: StepRequest):
                 target_job = scored_jobs.pop(target_idx)
                 scored_jobs.insert(0, target_job)
         # Store reordered scored_jobs at top level so the agent can read it
-        state["scored_jobs"] = scored_jobs
-
-        # Auto-set job_query for market intel based on selected job
         if scored_jobs:
+            state["scored_jobs"] = scored_jobs
             target = scored_jobs[0]
             state["_selected_job"] = target
             if not state.get("job_query") or state["job_query"] == "":
