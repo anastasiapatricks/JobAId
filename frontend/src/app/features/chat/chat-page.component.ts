@@ -699,6 +699,56 @@ export class ChatPageComponent implements OnInit, OnDestroy {
                 this.chat['addMessage'](msg);
               }
             }
+          } else if (action === 'market_intel') {
+            const selected = results._selected_job || null;
+            if (selected?.title) {
+              // Job-specific market intel — prompt to generate cover letter
+              const title: string = selected.title;
+              const company: string = selected.company || '';
+              const jobLabel = company ? `${title} at ${company}` : title;
+              const msg: any = {
+                type: 'text',
+                sender: 'system',
+                text: `Here's the market research for ${jobLabel}. Would you like me to generate a tailored cover letter for this role?`,
+                suggestions: [`Yes, generate a cover letter for ${title}${company ? ' at ' + company : ''}`],
+                completedStages: finalStages,
+              };
+              this.chat['addMessage'](msg);
+            } else {
+              // General market intel — prompt next action
+              const allResults = results.results || [];
+              const discResult = [...allResults].reverse().find((r: any) => r.action === 'discovery');
+              const scoredJobs = discResult?.scored_jobs || results.scored_jobs || [];
+              const jobChips = scoredJobs.slice(0, 3).map(
+                (j: any) => `I'm interested in ${j.title} at ${j.company}`
+              );
+              const msg: any = {
+                type: 'text',
+                sender: 'system',
+                text: 'Would you like to explore a specific role for a cover letter, or search for new jobs?',
+                suggestions: [...jobChips, 'Find more jobs', 'Summarize my session'],
+                completedStages: finalStages,
+              };
+              this.chat['addMessage'](msg);
+            }
+          } else if (action === 'pitching') {
+            const msg: any = {
+              type: 'text',
+              sender: 'system',
+              text: 'Your cover letter is ready! What would you like to do next?',
+              suggestions: ['Find more jobs', 'Summarize my session', 'Pick another role'],
+              completedStages: finalStages,
+            };
+            this.chat['addMessage'](msg);
+          } else if (action === 'summarizing') {
+            const msg: any = {
+              type: 'text',
+              sender: 'system',
+              text: "That's your session summary. Would you like to search for more jobs or explore another role?",
+              suggestions: ['Find more jobs', 'Find jobs for my profile'],
+              completedStages: finalStages,
+            };
+            this.chat['addMessage'](msg);
           }
 
           this.state = 'awaiting_input';
