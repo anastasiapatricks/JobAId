@@ -450,7 +450,6 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
 
     valid, issues = validate_pitch_output(result)
     if not valid:
-        from datetime import datetime, timezone
         _guard_logger.warning(json.dumps({
             "event": "guardrail_triggered",
             "timestamp": datetime.now(timezone.utc).isoformat(),
