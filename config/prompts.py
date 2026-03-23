@@ -129,7 +129,8 @@ Guidelines:
 - Show knowledge of the company (use provided research)
 - Be professional but authentic — avoid generic cliches
 - Keep it to 3-4 paragraphs
-- Include a strong opening and clear call to action"""
+- Include a strong opening and clear call to action
+- If reference cover letter samples are provided, use them as style and structure inspiration — do NOT copy them verbatim"""
 
 PITCH_REVIEW_SYSTEM = """\
 You are an editorial reviewer for cover letters. Review the draft for:

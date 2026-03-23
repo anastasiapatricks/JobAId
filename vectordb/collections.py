@@ -44,3 +44,13 @@ def get_trends_collection():
         embedding_function=get_embedding_function(),
         metadata={"description": "Industry trend paragraphs"},
     )
+
+
+def get_cover_letters_collection():
+    """Cover letter samples collection — seeded from data/seed_cover_letters.json."""
+    client = get_chroma_client()
+    return client.get_or_create_collection(
+        name="cover_letter_samples",
+        embedding_function=get_embedding_function(),
+        metadata={"description": "Cover letter samples for pitch generation reference"},
+    )

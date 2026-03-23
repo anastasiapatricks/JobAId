@@ -26,6 +26,8 @@ from guardrails.input_filter import sanitize_pitch_input, validate_pitch_job_dat
 from guardrails.model_router import get_model_for_task
 from tools.tavily_search import search_company
 from tools.wikipedia import get_company_summary
+from tools.chromadb_tools import search_collection
+from vectordb.collections import get_cover_letters_collection
 from utils import debug, get_latest_results
 from utils.llm_logger import logged_invoke
 
@@ -181,12 +183,38 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # ─── Step 3: Draft Generation ───
     debug("Pitch Generator: Step 3 — draft generation")
+
+    # Retrieve relevant cover letter samples from RAG
+    samples_context = ""
+    try:
+        cover_letters_coll = get_cover_letters_collection()
+        keywords = best_job.get("keywords", [])
+        sample_query = f"cover letter for {job_title} {keywords[0] if keywords else ''}"
+        sample_results = search_collection(cover_letters_coll, sample_query, n_results=3)
+        if sample_results:
+            samples_parts = []
+            for j, res in enumerate(sample_results, 1):
+                meta = res.get("metadata", {})
+                samples_parts.append(
+                    f"--- Sample {j} (Industry: {meta.get('industry', 'N/A')}, "
+                    f"Level: {meta.get('experience_level', 'N/A')}) ---\n"
+                    f"{res['document']}"
+                )
+            samples_context = (
+                "Reference cover letter samples (use as style/structure guide, do NOT copy):\n\n"
+                + "\n\n".join(samples_parts)
+            )
+            debug(f"Pitch Generator: Retrieved {len(sample_results)} cover letter samples from RAG")
+    except Exception as exc:
+        debug(f"Pitch Generator: Cover letter RAG retrieval error: {exc}")
+
     draft_prompt = (
         f"Write a cover letter for this candidate applying to {job_title} at {company}.\n\n"
         f"Candidate:\n{candidate_summary}\n\n"
         f"Company research:\n{company_research}\n\n"
         f"Match analysis:\n{json.dumps(match_analysis, indent=2)}\n\n"
-        f"Write a compelling, personalized cover letter."
+        + (f"{samples_context}\n\n" if samples_context else "")
+        + "Write a compelling, personalized cover letter."
     )
     if not get_autonomy().record_llm_call():
         raise RuntimeError("LLM call limit exceeded")
