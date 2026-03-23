@@ -125,3 +125,112 @@ def validate_chat_message(message: str) -> Tuple[bool, str]:
 def spotlight_wrap(user_input: str) -> str:
     """Wrap user input with delimiter spotlighting to prevent injection."""
     return f"<<<USER_INPUT>>>\n{user_input}\n<<<END_USER_INPUT>>>"
+
+
+# ─── Indirect prompt injection defense for pitch generator ───
+# These patterns target injection attempts that arrive via external data
+# (job listings from APIs, web search results, Wikipedia) rather than
+# direct user input.
+
+_INDIRECT_INJECTION_PATTERNS = [
+    # Core injection attempts (superset of _INJECTION_PATTERNS, tuned for external text)
+    *_INJECTION_PATTERNS,
+    # System prompt extraction
+    re.compile(r"(output|reveal|show|print|repeat|display)\s+(the\s+|your\s+)?(system\s+prompt|instructions|system\s+message)", re.I),
+    re.compile(r"what\s+(are|is)\s+(your|the)\s+(system\s+)?(instructions|prompt|rules)", re.I),
+    # Role hijacking via external content
+    re.compile(r"(forget|disregard|override)\s+(everything|all|your)\s+(above|previous|instructions|rules)?", re.I),
+    re.compile(r"new\s+instructions?\s*:", re.I),
+    re.compile(r"act\s+as\s+(if\s+you\s+are|a)\b", re.I),
+    # Data exfiltration attempts
+    re.compile(r"(send|forward|email|post|exfiltrate|transmit)\s+(this|the|all)\s+(data|info|conversation|context|resume)", re.I),
+    re.compile(r"(curl|wget|fetch|request)\s+https?://", re.I),
+    # Encoded/obfuscated injection
+    re.compile(r"base64\s*(decode|encode)", re.I),
+    re.compile(r"\\x[0-9a-f]{2}", re.I),
+]
+
+MAX_EXTERNAL_CONTENT_LENGTH = 10_000  # Max chars for external research content
+
+
+def sanitize_pitch_input(
+    text: str, source: str
+) -> Tuple[str, bool, str]:
+    """Sanitize external content before it enters the pitch generator LLM prompt.
+
+    Scans job listing data, web search results, and Wikipedia content for
+    indirect prompt injection attempts. Returns (sanitized_text, is_safe, detail).
+
+    If injection is detected, the offending text is stripped and a warning is logged.
+    The sanitized text is still returned (with injections removed) so the pipeline
+    can continue with degraded but safe input.
+    """
+    if not text:
+        return text, True, ""
+
+    # Length cap — external content should not be excessively long
+    if len(text) > MAX_EXTERNAL_CONTENT_LENGTH:
+        text = text[:MAX_EXTERNAL_CONTENT_LENGTH]
+        _guard_logger.info(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "input_length_trim",
+            "stage": f"pitch_input_{source}",
+            "detail": f"trimmed to {MAX_EXTERNAL_CONTENT_LENGTH} chars",
+        }))
+
+    found_injections = []
+    sanitized = text
+    for pattern in _INDIRECT_INJECTION_PATTERNS:
+        match = pattern.search(sanitized)
+        if match:
+            found_injections.append(pattern.pattern[:60])
+            # Strip the offending segment rather than rejecting entirely
+            sanitized = pattern.sub("[FILTERED]", sanitized)
+
+    if found_injections:
+        detail = f"indirect injection in {source}: {found_injections}"
+        _guard_logger.warning(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "indirect_prompt_injection",
+            "stage": f"pitch_input_{source}",
+            "detail": detail,
+        }))
+        return sanitized, False, detail
+
+    return sanitized, True, ""
+
+
+def validate_pitch_job_data(job: dict) -> Tuple[dict, bool, list]:
+    """Validate and sanitize job listing data before pitch generation.
+
+    Scans job title, company name, description, and keywords for injection
+    patterns. Returns (sanitized_job, is_safe, list_of_warnings).
+    """
+    if not job or not isinstance(job, dict):
+        return job, True, []
+
+    warnings = []
+    sanitized_job = dict(job)  # shallow copy
+
+    for field in ("title", "company", "description", "location"):
+        value = job.get(field, "")
+        if not isinstance(value, str):
+            continue
+        cleaned, is_safe, detail = sanitize_pitch_input(value, f"job_{field}")
+        if not is_safe:
+            warnings.append(f"job.{field}: {detail}")
+            sanitized_job[field] = cleaned
+
+    # Sanitize keywords list
+    keywords = job.get("keywords", [])
+    if isinstance(keywords, list):
+        clean_keywords = []
+        for kw in keywords:
+            if isinstance(kw, str):
+                cleaned, is_safe, _ = sanitize_pitch_input(kw, "job_keyword")
+                clean_keywords.append(cleaned)
+        sanitized_job["keywords"] = clean_keywords
+
+    return sanitized_job, len(warnings) == 0, warnings

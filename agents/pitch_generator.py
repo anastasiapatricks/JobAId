@@ -15,7 +15,14 @@ from config.prompts import (
     PITCH_DRAFT_SYSTEM,
     PITCH_REVIEW_SYSTEM,
 )
-from guardrails.output_filter import validate_pitch_output
+from guardrails.output_filter import (
+    validate_pitch_output,
+    check_pitch_pii_leakage,
+    check_pitch_professionalism,
+    check_pitch_grounding,
+    check_pitch_fabrication,
+)
+from guardrails.input_filter import sanitize_pitch_input, validate_pitch_job_data
 from guardrails.model_router import get_model_for_task
 from tools.tavily_search import search_company
 from tools.wikipedia import get_company_summary
@@ -102,6 +109,11 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
             "final_pitch": "",
         }
 
+    # ─── Sanitize job listing data (indirect injection defense) ───
+    best_job, job_safe, job_warnings = validate_pitch_job_data(best_job)
+    if job_warnings:
+        debug(f"Pitch Generator: job data sanitized — {job_warnings}")
+
     company = best_job.get("company", "")
     job_title = best_job.get("title", "the role")
     from agents.orchestrator import get_autonomy
@@ -125,6 +137,14 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as exc:
                 debug(f"Pitch Generator: Wikipedia error: {exc}")
                 company_info = f"{company} is a technology company."
+
+    # ─── Sanitize external research content (indirect injection defense) ───
+    if company_info:
+        company_info, research_safe, research_detail = sanitize_pitch_input(
+            company_info, "company_research"
+        )
+        if not research_safe:
+            debug(f"Pitch Generator: company research sanitized — {research_detail}")
 
     job_context = (
         f"Company: {company}\n"
@@ -200,15 +220,54 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         "final_pitch": final_pitch,
     }
 
+    # ─── Guardrail checks ───
+    from datetime import datetime, timezone
+    all_issues = []
+
     valid, issues = validate_pitch_output(result)
     if not valid:
-        from datetime import datetime, timezone
+        all_issues.extend(issues)
+
+    if final_pitch:
+        # PII leakage check
+        pii_ok, pii_issues = check_pitch_pii_leakage(final_pitch)
+        if not pii_ok:
+            all_issues.extend(pii_issues)
+
+        # Professionalism check
+        prof_ok, prof_issues = check_pitch_professionalism(final_pitch)
+        if not prof_ok:
+            all_issues.extend(prof_issues)
+
+        # Grounding check — verify pitch uses actual candidate skills
+        info = state.get("resume_info") or {}
+        skills_data = info.get("skills", {})
+        candidate_skills = []
+        if isinstance(skills_data, dict):
+            candidate_skills = skills_data.get("technical", [])
+        elif isinstance(skills_data, list):
+            candidate_skills = skills_data
+        contact = info.get("contact_info", {})
+        cand_name = contact.get("name") if isinstance(contact, dict) else None
+
+        grounding_score, grounding_warnings = check_pitch_grounding(
+            final_pitch, candidate_skills, cand_name
+        )
+        if grounding_warnings:
+            all_issues.extend(grounding_warnings)
+
+        # Fabrication check
+        fab_ok, fab_issues = check_pitch_fabrication(final_pitch)
+        if not fab_ok:
+            all_issues.extend(fab_issues)
+
+    if all_issues:
         _guard_logger.warning(json.dumps({
             "event": "guardrail_triggered",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "guardrail": "output_validation",
+            "guardrail": "pitch_output_validation",
             "agent": "pitch_generator",
-            "issues": issues,
+            "issues": all_issues,
         }))
 
     return result
