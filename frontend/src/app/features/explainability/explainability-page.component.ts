@@ -80,19 +80,19 @@ const DEFAULT_META = { icon: 'smart_toy', color: '#546E7A', label: '' };
 
         <!-- ── Agent trace cards ── -->
         @for (item of traces(); track item.action + item.timestamp) {
-          <div class="trace-card" [style.--agent-color]="agentMeta(item.trace.agent_name).color">
+          <div class="trace-card" [style.--agent-color]="agentMeta(item.trace.agent_name ?? '').color">
 
             <!-- Card header -->
             <div class="card-header">
               <div class="agent-icon-wrap">
-                <mat-icon>{{ agentMeta(item.trace.agent_name).icon }}</mat-icon>
+                <mat-icon>{{ agentMeta(item.trace.agent_name ?? '').icon }}</mat-icon>
               </div>
               <div class="agent-info">
-                <span class="agent-name">{{ agentMeta(item.trace.agent_name).label || item.trace.agent_name }}</span>
+                <span class="agent-name">{{ agentMeta(item.trace.agent_name ?? '').label || item.trace.agent_name }}</span>
                 <span class="agent-ts">{{ formatTs(item.trace.timestamp) }}</span>
               </div>
-              <div class="confidence-ring" [class]="confidenceClass(item.trace.confidence)">
-                <span class="ring-num">{{ (item.trace.confidence * 100) | number:'1.0-0' }}</span>
+              <div class="confidence-ring" [class]="confidenceClass(item.trace.confidence ?? 0)">
+                <span class="ring-num">{{ ((item.trace.confidence ?? 0) * 100) | number:'1.0-0' }}</span>
                 <span class="ring-pct">%</span>
               </div>
             </div>
@@ -105,11 +105,11 @@ const DEFAULT_META = { icon: 'smart_toy', color: '#546E7A', label: '' };
               <span class="grounding-lbl">Grounding</span>
               <div class="grounding-track">
                 <div class="grounding-fill"
-                     [style.width.%]="item.trace.grounding_score * 100"
-                     [class]="confidenceClass(item.trace.grounding_score)">
+                     [style.width.%]="(item.trace.grounding_score ?? 0) * 100"
+                     [class]="confidenceClass(item.trace.grounding_score ?? 0)">
                 </div>
               </div>
-              <span class="grounding-val">{{ item.trace.grounding_score | number:'1.2-2' }}</span>
+              <span class="grounding-val">{{ (item.trace.grounding_score ?? 0) | number:'1.2-2' }}</span>
             </div>
 
             <!-- Feature attributions (rendered intelligently per agent) -->
@@ -743,13 +743,16 @@ export class ExplainabilityPageComponent {
 
   readonly traces = computed<TraceWithAction[]>(() => {
     const results = this.pipeline.results()?.results ?? [];
-    return results
-      .filter((r: ResultEntry) => r.explainability_trace)
-      .map((r: ResultEntry) => ({
-        action: r.action,
-        timestamp: r.timestamp,
-        trace: r.explainability_trace!,
-      }));
+    const out: TraceWithAction[] = [];
+    for (const r of results) {
+      if (!r.explainability_trace) continue;
+      const raw = r.explainability_trace;
+      const traceList: ExplainabilityTrace[] = Array.isArray(raw) ? raw : [raw as ExplainabilityTrace];
+      for (const trace of traceList) {
+        out.push({ action: r.action, timestamp: r.timestamp, trace });
+      }
+    }
+    return out;
   });
 
   readonly decisionLog = computed<DecisionLogEntry[]>(() => {
@@ -764,7 +767,7 @@ export class ExplainabilityPageComponent {
   readonly avgConfidence = computed(() => {
     const t = this.traces();
     if (!t.length) return 0;
-    return (t.reduce((s, i) => s + i.trace.confidence, 0) / t.length) * 100;
+    return (t.reduce((s, i) => s + (i.trace.confidence ?? 0), 0) / t.length) * 100;
   });
 
   readonly avgConfidenceClass = computed(() => this.confidenceClass(this.avgConfidence() / 100));
