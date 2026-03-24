@@ -52,7 +52,10 @@ def _parse_json_response(text: str) -> dict:
 
 
 def _get_best_job(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Get the top-scored job from state."""
+    """Get the selected or top-scored job from state."""
+    selected = state.get("_selected_job")
+    if selected:
+        return selected
     latest = get_latest_results(state)
     scored = state.get("scored_jobs") or latest.get("scored_jobs") or []
     if scored:
@@ -190,97 +193,104 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     4. Quality review
     """
     best_job = _get_best_job(state)
-    if not best_job:
-        return {
-            "messages": [{"role": "assistant", "content": "[Pitch Generator] No job available to generate pitch for."}],
-            "final_pitch": "",
-        }
+    generic_mode = not best_job
 
-    # ─── Sanitize job listing data (indirect injection defense) ───
-    best_job, job_safe, job_warnings = validate_pitch_job_data(best_job)
-    if job_warnings:
-        debug(f"Pitch Generator: job data sanitized — {job_warnings}")
-
-    company = best_job.get("company", "")
-    job_title = best_job.get("title", "the role")
     from agents.orchestrator import get_autonomy
     candidate_summary = _build_candidate_summary(state)
     llm = ChatOpenAI(model=get_model_for_task("pitch_draft"), temperature=0.7)
 
     draft_pitches = []
 
-    job_location = best_job.get("location", "")
-
-    # ─── Step 1: Company Research ───
-    debug("Pitch Generator: Step 1 — company research")
-    company_info = ""
-    company_contact_info = ""
-    if company:
-        try:
-            company_info = search_company(company)
-        except Exception as exc:
-            debug(f"Pitch Generator: Tavily company search error: {exc}")
-        if not company_info:
-            debug("Pitch Generator: Tavily company search empty, falling back to Wikipedia")
-            try:
-                company_info = get_company_summary(company)
-            except Exception as exc:
-                debug(f"Pitch Generator: Wikipedia error: {exc}")
-                company_info = f"{company} is a technology company."
-
-        # Search for company contact info (address, phone) for the job's region
-        try:
-            company_contact_info = search_company_contact(company, job_location)
-        except Exception as exc:
-            debug(f"Pitch Generator: Tavily company contact search error: {exc}")
-
-    # ─── Sanitize external research content (indirect injection defense) ───
-    if company_info:
-        company_info, research_safe, research_detail = sanitize_pitch_input(
-            company_info, "company_research"
-        )
-        if not research_safe:
-            debug(f"Pitch Generator: company research sanitized — {research_detail}")
-
-    if company_contact_info:
-        company_contact_info, contact_safe, contact_detail = sanitize_pitch_input(
-            company_contact_info, "company_contact"
-        )
-        if not contact_safe:
-            debug(f"Pitch Generator: company contact info sanitized — {contact_detail}")
-
-    job_context = (
-        f"Company: {company}\n"
-        f"Job title: {job_title}\n"
-        f"Location: {job_location or 'N/A'}\n"
-        f"Job keywords: {', '.join(best_job.get('keywords', []))}\n"
-        f"Job description: {best_job.get('description', 'N/A')[:500]}\n"
-    )
-
-    research_input = f"{job_context}\n\nCompany info:\n{company_info}"
-    if company_contact_info:
-        research_input += f"\n\nCompany contact info:\n{company_contact_info}"
-
-    if not get_autonomy().record_llm_call():
-        raise RuntimeError("LLM call limit exceeded")
-    research_response = logged_invoke(llm, [
-        SystemMessage(content=PITCH_RESEARCH_SYSTEM),
-        HumanMessage(content=research_input),
-    ], "pitch_research")
-
-    # Parse structured research response (JSON with summary + contact_info)
-    research_parsed = _parse_json_response(research_response.content)
-    if research_parsed and "summary" in research_parsed:
-        company_research = research_parsed["summary"]
-        company_contact = research_parsed.get("contact_info", {})
-        if not isinstance(company_contact, dict):
-            company_contact = {}
-        debug(f"Pitch Generator: extracted company contact: {company_contact}")
-    else:
-        # Fallback: treat entire response as prose summary (no structured contact)
-        company_research = research_response.content
+    if generic_mode:
+        # ─── Generic mode: no specific job, generate from resume alone ───
+        debug("Pitch Generator: generic mode — no job targeted")
+        company = ""
+        job_title = ""
+        job_location = ""
+        company_research = ""
         company_contact = {}
-        debug("Pitch Generator: research response was not structured JSON, using as prose")
+        job_context = "No specific job targeted. Write a general-purpose cover letter for the candidate's field."
+    else:
+        # ─── Job-specific mode ───
+        # ─── Sanitize job listing data (indirect injection defense) ───
+        best_job, job_safe, job_warnings = validate_pitch_job_data(best_job)
+        if job_warnings:
+            debug(f"Pitch Generator: job data sanitized — {job_warnings}")
+
+        company = best_job.get("company", "")
+        job_title = best_job.get("title", "the role")
+        job_location = best_job.get("location", "")
+
+        # ─── Step 1: Company Research ───
+        debug("Pitch Generator: Step 1 — company research")
+        company_info = ""
+        company_contact_info = ""
+        if company:
+            try:
+                company_info = search_company(company)
+            except Exception as exc:
+                debug(f"Pitch Generator: Tavily company search error: {exc}")
+            if not company_info:
+                debug("Pitch Generator: Tavily company search empty, falling back to Wikipedia")
+                try:
+                    company_info = get_company_summary(company)
+                except Exception as exc:
+                    debug(f"Pitch Generator: Wikipedia error: {exc}")
+                    company_info = f"{company} is a technology company."
+
+            # Search for company contact info (address, phone) for the job's region
+            try:
+                company_contact_info = search_company_contact(company, job_location)
+            except Exception as exc:
+                debug(f"Pitch Generator: Tavily company contact search error: {exc}")
+
+        # ─── Sanitize external research content (indirect injection defense) ───
+        if company_info:
+            company_info, research_safe, research_detail = sanitize_pitch_input(
+                company_info, "company_research"
+            )
+            if not research_safe:
+                debug(f"Pitch Generator: company research sanitized — {research_detail}")
+
+        if company_contact_info:
+            company_contact_info, contact_safe, contact_detail = sanitize_pitch_input(
+                company_contact_info, "company_contact"
+            )
+            if not contact_safe:
+                debug(f"Pitch Generator: company contact info sanitized — {contact_detail}")
+
+        job_context = (
+            f"Company: {company}\n"
+            f"Job title: {job_title}\n"
+            f"Location: {job_location or 'N/A'}\n"
+            f"Job keywords: {', '.join(best_job.get('keywords', []))}\n"
+            f"Job description: {best_job.get('description', 'N/A')[:500]}\n"
+        )
+
+        research_input = f"{job_context}\n\nCompany info:\n{company_info}"
+        if company_contact_info:
+            research_input += f"\n\nCompany contact info:\n{company_contact_info}"
+
+        if not get_autonomy().record_llm_call():
+            raise RuntimeError("LLM call limit exceeded")
+        research_response = logged_invoke(llm, [
+            SystemMessage(content=PITCH_RESEARCH_SYSTEM),
+            HumanMessage(content=research_input),
+        ], "pitch_research")
+
+        # Parse structured research response (JSON with summary + contact_info)
+        research_parsed = _parse_json_response(research_response.content)
+        if research_parsed and "summary" in research_parsed:
+            company_research = research_parsed["summary"]
+            company_contact = research_parsed.get("contact_info", {})
+            if not isinstance(company_contact, dict):
+                company_contact = {}
+            debug(f"Pitch Generator: extracted company contact: {company_contact}")
+        else:
+            # Fallback: treat entire response as prose summary (no structured contact)
+            company_research = research_response.content
+            company_contact = {}
+            debug("Pitch Generator: research response was not structured JSON, using as prose")
 
     # ─── Step 2: Match Analysis ───
     debug("Pitch Generator: Step 2 — match analysis")
@@ -306,8 +316,12 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     samples_context = ""
     try:
         cover_letters_coll = get_cover_letters_collection()
-        keywords = best_job.get("keywords", [])
-        sample_query = f"cover letter for {job_title} {keywords[0] if keywords else ''}"
+        if generic_mode:
+            # Use candidate's field/skills for RAG query
+            sample_query = f"cover letter {candidate_summary[:100]}"
+        else:
+            keywords = best_job.get("keywords", [])
+            sample_query = f"cover letter for {job_title} {keywords[0] if keywords else ''}"
         sample_results = search_collection(cover_letters_coll, sample_query, n_results=3)
         if sample_results:
             samples_parts = []
@@ -337,15 +351,24 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         if contact_parts:
             contact_context = "Company contact details (use these in the letter header):\n" + "\n".join(contact_parts) + "\n\n"
 
-    draft_prompt = (
-        f"Write a cover letter for this candidate applying to {job_title} at {company}.\n\n"
-        f"Candidate:\n{candidate_summary}\n\n"
-        f"Company research:\n{company_research}\n\n"
-        + contact_context
-        + f"Match analysis:\n{json.dumps(match_analysis, indent=2)}\n\n"
-        + (f"{samples_context}\n\n" if samples_context else "")
-        + "Write a compelling, personalized cover letter."
-    )
+    if generic_mode:
+        draft_prompt = (
+            f"Write a general-purpose cover letter for this candidate.\n\n"
+            f"Candidate:\n{candidate_summary}\n\n"
+            f"Match analysis:\n{json.dumps(match_analysis, indent=2)}\n\n"
+            + (f"{samples_context}\n\n" if samples_context else "")
+            + "Write a compelling, general-purpose cover letter that showcases the candidate's strengths."
+        )
+    else:
+        draft_prompt = (
+            f"Write a cover letter for this candidate applying to {job_title} at {company}.\n\n"
+            f"Candidate:\n{candidate_summary}\n\n"
+            f"Company research:\n{company_research}\n\n"
+            + contact_context
+            + f"Match analysis:\n{json.dumps(match_analysis, indent=2)}\n\n"
+            + (f"{samples_context}\n\n" if samples_context else "")
+            + "Write a compelling, personalized cover letter."
+        )
     if not get_autonomy().record_llm_call():
         raise RuntimeError("LLM call limit exceeded")
     draft_response = logged_invoke(llm, [
@@ -362,11 +385,14 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     review_llm = ChatOpenAI(model=get_model_for_task("pitch_review"), temperature=0.7)
 
     # Provide context so reviewer can verify company details are real
-    review_context = (
-        f"\n\nContext — Company: {company}, Location: {job_location}"
-    )
-    if company_contact:
-        review_context += f", Contact: {json.dumps(company_contact)}"
+    if generic_mode:
+        review_context = "\n\nContext — This is a general-purpose cover letter, not targeting a specific company."
+    else:
+        review_context = (
+            f"\n\nContext — Company: {company}, Location: {job_location}"
+        )
+        if company_contact:
+            review_context += f", Contact: {json.dumps(company_contact)}"
 
     review_response = logged_invoke(review_llm, [
         SystemMessage(content=PITCH_REVIEW_SYSTEM),
@@ -437,7 +463,10 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     )
     debug("Pitch Generator: post-processing completed — placeholders replaced")
 
-    msg = f"[Pitch Generator] Generated cover letter for {job_title} at {company} (4-step chain: research → analysis → draft → review)."
+    if generic_mode:
+        msg = "[Pitch Generator] Generated general-purpose cover letter (3-step chain: analysis → draft → review)."
+    else:
+        msg = f"[Pitch Generator] Generated cover letter for {job_title} at {company} (4-step chain: research → analysis → draft → review)."
 
     result = {
         "messages": [
@@ -461,21 +490,27 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     # --- XAI: Grounding verification ---
     latest = get_latest_results(state)
     resume_info = latest.get("resume_info") or state.get("resume_info") or {}
-    grounding = verify_pitch_grounding(final_pitch, resume_info, best_job)
+    grounding = verify_pitch_grounding(final_pitch, resume_info, best_job or {})
     result["grounding_verification"] = grounding
 
     # --- XAI: Explainability trace ---
     xai_warnings = list(grounding.get("warnings", []))
     if not valid:
         xai_warnings.extend(issues)
+    if generic_mode:
+        xai_reasoning = f"Generic cover letter (3-step chain); {len(grounding['verified_claims'])} claims grounded"
+        xai_sources = ["match_analysis", "llm_draft", "llm_review"]
+    else:
+        xai_reasoning = f"4-step chain for {job_title} @ {company}; {len(grounding['verified_claims'])} claims grounded"
+        xai_sources = ["company_research", "match_analysis", "llm_draft", "llm_review"]
     result["explainability_trace"] = create_trace(
         agent_name="pitch_generator",
         prompt_version=PITCH_GENERATOR_PROMPT_VERSION,
         confidence=grounding["grounding_score"],
-        reasoning=f"4-step chain for {job_title} @ {company}; {len(grounding['verified_claims'])} claims grounded",
+        reasoning=xai_reasoning,
         feature_attributions={"match_analysis": match_analysis},
         grounding_score=grounding["grounding_score"],
-        sources_consulted=["company_research", "match_analysis", "llm_draft", "llm_review"],
+        sources_consulted=xai_sources,
         warnings=xai_warnings,
     ).to_dict()
 
