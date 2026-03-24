@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
 from langchain_openai import ChatOpenAI
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from models.state import JobAIdState, OrchestratorStage
 from guardrails.bounded_autonomy import BoundedAutonomy
@@ -263,7 +263,7 @@ def interpret_user_intent(user_message: str, state: dict) -> dict:
         if role == "user":
             messages.append(HumanMessage(content=content))
         else:
-            from langchain.schema import AIMessage
+            from langchain_core.messages import AIMessage
             messages.append(AIMessage(content=content))
 
     # Add the current user message with a JSON reminder since conversation
