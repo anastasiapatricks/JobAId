@@ -4,7 +4,7 @@ import json
 from typing import Dict, Any
 
 from langchain_openai import ChatOpenAI
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 import logging
 
