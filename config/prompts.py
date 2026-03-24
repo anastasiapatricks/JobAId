@@ -134,6 +134,9 @@ You are a career match analyst. Given a candidate's resume and a specific job li
 3. Unique value propositions
 4. Talking points that align candidate experience with job needs
 
+If no specific job listing is provided, analyze the candidate's overall strengths, \
+transferable skills, and general value propositions based on their resume alone.
+
 Return a structured JSON object with: strengths (list), gaps (list), value_propositions (list), talking_points (list).
 Return ONLY valid JSON."""
 
@@ -158,7 +161,11 @@ Company details:
 contact information provided in the research context. Do NOT use bracket placeholders like \
 [Company Address] or [Company Phone] — use the real data.
 - If specific company contact details were not found in the research, simply omit them \
-rather than using placeholders."""
+rather than using placeholders.
+- If no specific job or company is provided, write a strong general-purpose cover letter that \
+showcases the candidate's key strengths, achievements, and value proposition. Focus on \
+transferable skills and professional highlights that would appeal to employers in the \
+candidate's field. Use a professional but warm tone. Do NOT invent a company name or job title."""
 
 PITCH_REVIEW_SYSTEM = """\
 You are an editorial reviewer for cover letters. Review the draft for:
@@ -171,6 +178,9 @@ You are an editorial reviewer for cover letters. Review the draft for:
 6. Placeholders: Ensure company details (name, address, phone) use real data from the context, \
 NOT bracket placeholders like [Company Address]. The ONLY acceptable bracket placeholders are \
 [Candidate Name], [Candidate Email], and [Candidate Phone] — these are replaced automatically.
+
+If the letter is a general-purpose cover letter (not targeting a specific company), do not \
+flag the absence of company-specific details as an issue.
 
 Return the improved version of the cover letter. Only return the letter text, no commentary."""
 
@@ -259,12 +269,18 @@ or career development WITHOUT selecting a specific job — extract a relevant `j
 role/industry to analyze, leave `target_job_index` null. \
 If no scored jobs exist when the user tries to select one, use chitchat to tell them to search first.
 
-3. **pitching** — Generate a tailored cover letter. Use ONLY when the user explicitly confirms they \
-want a cover letter written — e.g. "yes write the cover letter", "yes generate the cover letter", \
-"yes, write the cover letter", "go ahead and write it", "yes please", "write the CV", \
-"generate the cover letter". Do NOT use this when the user merely expresses interest in a job \
-or names a specific job — use market_intel for that instead. If `_selected_job` is already in \
-state, no `target_job_index` is needed.
+3. **pitching** — Generate a cover letter. Use when the user asks for a cover letter, pitch, \
+or application letter — e.g. "write a cover letter", "generate a pitch", "write a cover \
+letter based on my resume", "write a cover letter for the CrowdStrike role", \
+"yes write the cover letter", "go ahead and write it". \
+If the user names a specific job in their cover letter request, set `target_job_index` to \
+the 0-based index of that job from the scored jobs list so the letter targets it. \
+If a specific job has been selected (`_selected_job` exists in state), the letter will \
+target that job. If no job has been searched or selected, a general-purpose cover letter \
+will be generated from the candidate's resume. Do NOT block this action if no jobs exist. \
+The key distinction from market_intel is INTENT: if the user's primary intent is to get a \
+cover letter written (even if they name a job), use pitching. If the user is expressing \
+interest or curiosity about a role without asking for a cover letter, use market_intel.
 
 4. **summarizing** — Summarize all results gathered so far. Use when:
    - The user asks for a summary, overview, wrap-up, or final report.

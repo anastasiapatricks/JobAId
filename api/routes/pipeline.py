@@ -9,14 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 
-import re
-
 logger = logging.getLogger("jobaid.api")
-
-_AFFIRMATIVE = re.compile(
-    r"\b(yes|yeah|yep|yup|sure|ok|okay|go ahead|write it|generate|create|do it|please)\b",
-    re.IGNORECASE,
-)
 from models.api_models import (
     PipelineRunRequest,
     PipelineStatusResponse,
@@ -221,7 +214,6 @@ def _run_single_step(session_id: str, action: str, state: dict):
             title = selected.get("title", "")
             company = selected.get("company", "")
             if title:
-                state["_awaiting_cv_confirmation"] = True
                 job_label = f"**{title}**" + (f" at **{company}**" if company else "")
                 confirm_msg = (
                     f"That's the market research for {job_label}. "
@@ -233,9 +225,15 @@ def _run_single_step(session_id: str, action: str, state: dict):
                     "suggestions": ["Yes, write the cover letter"],
                 })
         elif action == "pitching":
-            msgs.append({"role": "assistant", "content": (
-                "Your cover letter is ready! Want to pick another role, search for more jobs, or get a session summary?"
-            )})
+            pitch_content = entry.get("final_pitch", "")
+            if pitch_content:
+                msgs.append({"role": "assistant", "content": (
+                    "Your cover letter is ready! Want to pick another role, search for more jobs, or get a session summary?"
+                )})
+            else:
+                msgs.append({"role": "assistant", "content": (
+                    "I wasn't able to generate a cover letter this time. Could you provide more details about the kind of role you're targeting?"
+                )})
         state["messages"] = msgs
 
         update_session(session_id, status="awaiting_input", state=state, result=state)
@@ -245,6 +243,13 @@ def _run_single_step(session_id: str, action: str, state: dict):
         errors = list(state.get("errors") or [])
         errors.append({"stage": action, "error": str(exc)})
         state["errors"] = errors
+        # Add user-visible error message
+        _action_labels = {"discovery": "job search", "market_intel": "market analysis",
+                          "pitching": "cover letter generation", "summarizing": "session summary"}
+        msgs = list(state.get("messages") or [])
+        msgs.append({"role": "assistant", "content":
+            f"Sorry, something went wrong during {_action_labels.get(action, action)}. Please try again."})
+        state["messages"] = msgs
         update_session(session_id, status="awaiting_input", state=state)
 
 
@@ -350,21 +355,12 @@ async def step(session_id: str, req: StepRequest):
         "message": req.message[:200],
     }))
 
-    # If we're waiting for CV confirmation, intercept affirmative replies without
-    # going to the LLM — the LLM keeps re-routing job names back to market_intel
-    if state.get("_awaiting_cv_confirmation") and _AFFIRMATIVE.search(req.message):
-        action = "pitching"
-        response_text = "Generating your cover letter now…"
-        parameters = {}
-        state["_awaiting_cv_confirmation"] = False
-        logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action, "via": "cv_confirmation_intercept"}))
-    else:
-        # Let the orchestrator LLM interpret the user's intent
-        intent = interpret_user_intent(req.message, state)
-        action = intent.get("action", "chitchat")
-        response_text = intent.get("response_text", "")
-        logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
-        parameters = intent.get("parameters") or {}
+    # Let the orchestrator LLM interpret the user's intent
+    intent = interpret_user_intent(req.message, state)
+    action = intent.get("action", "chitchat")
+    response_text = intent.get("response_text", "")
+    logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
+    parameters = intent.get("parameters") or {}
 
     # Persist assistant response to state for future context
     if response_text:
@@ -490,5 +486,4 @@ async def get_results(session_id: str):
         results=result_entries,
         completed_stages=_get_completed_stages(state),
         selected_job=state.get("_selected_job"),
-        awaiting_cv_confirmation=bool(state.get("_awaiting_cv_confirmation")),
     )
