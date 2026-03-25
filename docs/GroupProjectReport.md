@@ -23,11 +23,11 @@ JobAId is a multi-agent AI system that assists job seekers by automating the end
 - **Three-tier architecture** — Angular 20 chat UI, FastAPI REST API with SSE streaming, CLI interface
 - **HTTPS via CloudFront** — AWS CloudFront CDN distribution with SSL/TLS termination and static asset caching
 - **Full MLSecOps pipeline** — Docker containerisation, GitHub Actions CI/CD, Terraform infrastructure-as-code, CloudWatch monitoring
-- **258 automated tests** covering unit tests, integration tests, and AI security tests
+- **280 automated tests** covering unit tests, integration tests, and AI security tests
 
 ### 1.3 Constraints and Assumptions
 
-- The system uses OpenAI models (GPT-4o, GPT-4o-mini) via API; no model training or fine-tuning is performed
+- The system uses OpenAI models (GPT-4o-mini for all tasks) via API; no model training or fine-tuning is performed
 - Adzuna job listings are real but limited to the free-tier API (250 requests/day); mock data fallback is provided
 - ChromaDB runs in-process (no external database server); data re-seeds on each startup from JSON seed files
 - The system is designed for demo/educational purposes and is not production-hardened for high concurrency
@@ -126,9 +126,9 @@ The system follows a **three-tier architecture** with clear separation of concer
 │                    DATA / SERVICES TIER                  │
 │                                                         │
 │  ChromaDB (vector store)     OpenAI API (LLM + embed)   │
-│  ├── courses collection      ├── gpt-4o (quality tasks) │
-│  ├── industry_trends         ├── gpt-4o-mini (routing)  │
-│  ├── cover_letter_samples    └── text-embedding-3-small │
+│  ├── courses collection      ├── gpt-4o-mini (all tasks)│
+│  ├── industry_trends         └── text-embedding-3-small │
+│  ├── cover_letter_samples                               │
 │  └── jobs (dynamic)                                     │
 │                                                         │
 │  External APIs                                          │
@@ -228,7 +228,7 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 | **ChromaDB** | Lightweight, in-process vector database — no external server needed, seeds from JSON files (courses, trends, cover letter samples) |
 | **FastAPI** | Async Python web framework with automatic OpenAPI docs, Pydantic validation, and SSE support |
 | **Angular 20** | Enterprise-grade SPA framework with signals, standalone components, and Material Design 3 |
-| **OpenAI GPT-4o / GPT-4o-mini** | Model router selects quality model (GPT-4o) for complex tasks and cost-effective model (GPT-4o-mini) for routing/simple tasks |
+| **OpenAI GPT-4o-mini** | Cost-effective model used for all tasks via centralised model router; task-based routing allows per-task model upgrades without code changes |
 | **Terraform** | Infrastructure-as-code for reproducible, version-controlled AWS provisioning with one-command teardown |
 | **Docker + Docker Compose** | Consistent build/runtime environment, multi-service orchestration, health checks |
 | **GitHub Actions** | Integrated CI/CD with native AWS ECR/EC2 support and SSH deployment |
@@ -271,7 +271,7 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 - Results appended to the `results` array for persistence across conversation turns
 
 **Tools:**
-- `ChatOpenAI` (GPT-4o) for structured extraction
+- `ChatOpenAI` (GPT-4o-mini) for structured extraction
 - `PII Sanitiser` — strips name, email, phone, and gender indicators to produce `resume_debiased`
 - Input filter validates resume text before processing (length limits, injection detection)
 - `pypdf` and `python-docx` libraries for extracting text from PDF and DOCX files; plain text files decoded with UTF-8 fallback to latin-1
@@ -291,7 +291,7 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 **Tools:**
 - `Adzuna API` — real job board search with location, keyword, and salary filters
 - `ChromaDB` — upserts job listings as vectors, retrieves top matches via semantic similarity
-- `ChatOpenAI` (GPT-4o) — scores and ranks jobs against candidate profile
+- `ChatOpenAI` (GPT-4o-mini) — scores and ranks jobs against candidate profile
 - `MOCK_JOBS` fallback — 23 pre-defined job listings when Adzuna API is unavailable
 
 **Communication:** Reads `resume_debiased` and `job_query` from state; writes `scored_jobs` with title, company, score, URL, and explanation.
@@ -306,10 +306,10 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 - Stores `skill_gaps` (prioritised list), `upskilling_roadmap` (courses with providers, URLs, durations), `salary_insights` (range, median, percentiles), and `industry_trends` in shared state
 
 **Tools:**
-- `ChromaDB` — semantic search over seeded courses (15 entries) and industry trends (12 articles)
+- `ChromaDB` — semantic search over seeded courses (28 entries) and industry trends (18 articles)
 - `Tavily Web Search` — real-time search for courses, trends, and salary data
-- `ChatOpenAI` (GPT-4o) — synthesises RAG context into structured recommendations
-- Seed data fallback — JSON salary benchmarks (18 entries for Singapore market)
+- `ChatOpenAI` (GPT-4o-mini) — synthesises RAG context into structured recommendations
+- Seed data fallback — JSON salary benchmarks (60 entries for Singapore market)
 
 **Fallback Strategy:** If Tavily API is unavailable, falls back to ChromaDB seed data. If ChromaDB has no relevant results, provides LLM-only analysis.
 
@@ -317,12 +317,14 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 
 **Purpose:** Generate a tailored cover letter through multi-step prompt chaining with company-specific research and RAG-augmented style reference.
 
-**Reasoning Pattern:** 4-step prompt chain with PII-safe post-processing:
-1. **Company Research** — Wikipedia REST API + Tavily web search for company background, products, culture; additionally searches for region-specific company contact info (office address, phone) via `search_company_contact()`. The research LLM returns structured JSON with a `summary` (prose) and `contact_info` (office address, phone, city) — falling back to the company's HQ details if region-specific info is unavailable.
-2. **Match Analysis** — LLM analyses overlap between candidate profile and job requirements
-3. **Draft Generation** — RAG retrieval of 3 most relevant cover letter samples from ChromaDB (semantic search by job title/keywords), then LLM generates cover letter incorporating company research, company contact details, match analysis, and sample style references. The LLM uses candidate PII placeholders (`[Candidate Name]`, `[Candidate Email]`, `[Candidate Phone]`) which are replaced in post-processing.
+**Reasoning Pattern:** 4-step prompt chain with PII-safe post-processing (3-step in generic mode):
+1. **Company Research** (job-specific only, skipped in generic mode) — Wikipedia REST API + Tavily web search for company background, products, culture; additionally searches for region-specific company contact info (office address, phone) via `search_company_contact()`. The research LLM returns structured JSON with a `summary` (prose) and `contact_info` (office address, phone, city) — falling back to the company's HQ details if region-specific info is unavailable. Skipped when company name is a placeholder (e.g., "Unknown", "N/A").
+2. **Match Analysis** — LLM analyses overlap between candidate profile and job requirements (or general strengths in generic mode)
+3. **Draft Generation** — RAG retrieval of 3 most relevant cover letter samples from ChromaDB (semantic search by job title/keywords or candidate skills). The samples serve as **style and structure references** — they guide the LLM on professional tone, paragraph flow, and industry-appropriate formatting without being copied verbatim. This grounds the output in proven cover letter patterns rather than relying solely on the LLM's training data. The LLM then generates a cover letter incorporating company research, company contact details, match analysis, and the sample style references. The LLM uses candidate PII placeholders (`[Candidate Name]`, `[Candidate Email]`, `[Candidate Phone]`) which are replaced in post-processing.
 4. **Quality Review** — LLM self-reviews the draft for tone, specificity, completeness, and verifies company details are real (not bracket placeholders)
 5. **Post-processing** — `_replace_placeholders()` populates candidate PII (name, email, phone from resume) and any remaining company placeholders with actual data. This runs after guardrail checks on the raw LLM output.
+
+**Generic Mode:** When no job is selected, the pitch generator produces a general-purpose cover letter from the candidate's resume alone (3-step chain: match analysis → draft → review). When a job is selected but the company name is missing or a placeholder (e.g., "Unknown" from Adzuna), company research is skipped and the letter focuses on the role requirements without company-specific details.
 
 **PII Protection:** Candidate name, email, and phone are intentionally excluded from the LLM context (not included in the candidate summary sent to the LLM). These are populated only in post-processing on the final output, ensuring the LLM never sees candidate PII. Guardrail checks (including `check_pitch_pii_leakage()`) run on the raw LLM output before post-processing, so they can still detect if the LLM hallucinated PII without being triggered by the intentionally-populated contact details.
 
@@ -333,8 +335,8 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 **Tools:**
 - `Wikipedia REST API` — company summary retrieval with disambiguation handling
 - `Tavily Web Search` — company research via `search_company()` and region-specific contact info via `search_company_contact()`
-- `ChromaDB` — semantic search over 20 seeded cover letter samples (diverse industries, role types, and experience levels sourced from public career resources) for style and structure reference
-- `ChatOpenAI` (GPT-4o) — all 4 prompt chain steps
+- `ChromaDB` — semantic search over 20 seeded cover letter samples (diverse industries, role types, and experience levels sourced from public career resources) used as style and structure references to ground the LLM's output in proven cover letter patterns
+- `ChatOpenAI` (GPT-4o-mini) — all 4 prompt chain steps
 
 **Guardrails:**
 - **Input sanitisation** — `sanitize_pitch_input()` scans external content (job listings, web search results, Wikipedia, company contact search results) for indirect prompt injection patterns (system prompt extraction, role hijacking, data exfiltration, obfuscation) and replaces matches with `[FILTERED]`; `validate_pitch_job_data()` sanitises all job data fields before use
@@ -356,7 +358,7 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 - Stores `summary` (markdown report) and validates with `check_grounding()` to ensure the summary references actual data from the state
 
 **Tools:**
-- `ChatOpenAI` (GPT-4o) — report generation
+- `ChatOpenAI` (GPT-4o-mini) — report generation
 - `Output filter` — grounding check (0.0-1.0 score) verifying the summary references the candidate's name, top company, and skill gaps
 
 **Coordination:** Runs as the final agent after all others have completed, ensuring full state availability.
@@ -529,7 +531,7 @@ software engineer
 | Summarizer | 1 (report generation) |
 | Orchestrator | 1 per user message (intent routing) |
 
-A full pipeline run uses ~9 LLM calls. The default limit of 50 allows several full runs per session before capping.
+A full pipeline run uses ~9 LLM calls. The default limit of 50 allows several full runs per session before capping. The autonomy counter is reset at the start of each new session to prevent accumulated calls across sessions from blocking agents.
 
 **Example — Pitch Generator:** The pitch generator makes 4 LLM calls every time it runs. Without tracking, repeated requests could rack up unbounded API costs. With the guardrail, each call is counted against the session budget. On the 51st call across any agent, the pipeline stops gracefully and informs the user the session limit was reached.
 
@@ -545,7 +547,7 @@ A full pipeline run uses ~9 LLM calls. The default limit of 50 allows several fu
 | `job_ranking` | `default_model` | Job Discovery |
 | `market_intelligence` | `default_model` | Market Intelligence |
 | `pitch_draft` | `default_model` | Pitch Generator (steps 1–3) |
-| `pitch_review` | `quality_model` | Pitch Generator (step 4 — quality review) |
+| `pitch_review` | `default_model` | Pitch Generator (step 4 — quality review) |
 | `summarization` | `default_model` | Summarizer |
 | `confidence_check` | `default_model` | Resume Parser |
 | `orchestration` | `default_model` | Orchestrator |
@@ -554,7 +556,7 @@ Every agent calls `get_model_for_task(task_type)` instead of referencing `settin
 
 **Why It Matters:**
 - **Centralised control** — change models for the entire pipeline by editing one file instead of six agents
-- **Cost optimisation** — use cheaper models for intermediate steps and quality models for final outputs (e.g., `pitch_review` uses GPT-4o while `pitch_draft` uses GPT-4o-mini)
+- **Cost optimisation** — all tasks currently use GPT-4o-mini; the router enables per-task model upgrades (e.g., switching `pitch_review` to a larger model) without touching agent code
 - **Auditability** — the task-to-model mapping is explicit and version-controlled
 
 ### 6.5 Guardrails Coverage Summary
@@ -644,7 +646,7 @@ This provides real-time visibility into which guardrails are firing, at which pi
 │  main     │     │                             │     │                          │     │ EC2         │
 │           │     │  ┌───────────────────────┐  │     │  ┌────────────────────┐  │     │             │
 │           │     │  │ Backend Tests         │  │     │  │ docker build       │  │     │ SSH into    │
-│           │     │  │ - pytest (258 tests)  │  │     │  │ - backend image    │  │     │ EC2         │
+│           │     │  │ - pytest (280 tests)  │  │     │  │ - backend image    │  │     │ EC2         │
 │           │     │  │ - AI security tests   │  │     │  │ - frontend image   │  │     │             │
 │           │     │  └───────────────────────┘  │     │  └────────────────────┘  │     │ docker pull │
 │           │     │  ┌───────────────────────┐  │     │  ┌────────────────────┐  │     │             │
@@ -659,7 +661,7 @@ This provides real-time visibility into which guardrails are firing, at which pi
 
 ### 8.2 Automated Testing (Including AI Security Tests)
 
-The CI pipeline runs **258 automated tests** on every push/PR:
+The CI pipeline runs **280 automated tests** on every push/PR:
 
 | Test Category | File | Tests | Description |
 |---|---|---|---|
@@ -697,7 +699,7 @@ docker compose build && docker compose up -d
 1. Push to `main` triggers CI tests
 2. On success, Docker images are built and pushed to ECR
 3. GitHub Actions SSHs into EC2, pulls latest images, and runs `docker compose up -d`
-4. Health check verifies the deployment succeeded
+4. Health check verifies the deployment succeeded; automatic rollback to previous version on failure
 
 **Infrastructure Provisioning (Terraform):**
 ```bash
@@ -770,7 +772,7 @@ All backend log types share a common `session_id` field (propagated via Python `
 
 | Type | Tests | Scope |
 |---|---|---|
-| **Unit Tests** | 128 | Individual guardrail functions (input filter, output filter, bounded autonomy, PII sanitiser), debug logging, skill triage |
+| **Unit Tests** | 150 | Individual guardrail functions (input filter, output filter, bounded autonomy, PII sanitiser), debug logging, skill triage, XAI explainability |
 | **Integration Tests** | 22 | FastAPI endpoint testing (health check, session CRUD lifecycle, telemetry ingestion, middleware logging) via TestClient |
 | **AI Security Tests** | 100 | Direct prompt injection detection (all 7 patterns), adversarial inputs (case variations, extra whitespace, Unicode), indirect injection defense for pitch generator (system prompt extraction, role hijacking, data exfiltration, obfuscation), pitch job data validation, input length enforcement |
 | **AI Output Safety Tests** | 37 | Output structure validation, grounding score calculation, pitch PII leakage detection, professionalism checks, pitch grounding verification, fabrication detection |
@@ -779,22 +781,23 @@ All backend log types share a common `session_id` field (propagated via Python `
 ### 9.2 Test Results
 
 ```
-======================== 258 passed, 12 warnings in 11.39s ========================
+======================== 280 passed, 13 warnings in 12.84s ========================
 
-tests/test_input_filter.py       100 passed
-tests/test_market_intelligence.py  55 passed
-tests/test_output_filter.py       37 passed
-tests/test_bounded_autonomy.py    14 passed
-tests/test_pii_sanitizer.py       14 passed
-tests/test_skill_triage.py        13 passed
-tests/test_sessions.py             7 passed
-tests/test_telemetry.py            6 passed
-tests/test_health.py               5 passed
-tests/test_debug_logging.py        4 passed
-tests/test_middleware.py            3 passed
+tests/test_input_filter.py        100 passed
+tests/test_market_intelligence.py   55 passed
+tests/test_output_filter.py        37 passed
+tests/test_xai.py                  22 passed
+tests/test_bounded_autonomy.py     14 passed
+tests/test_pii_sanitizer.py        14 passed
+tests/test_skill_triage.py         13 passed
+tests/test_sessions.py              7 passed
+tests/test_telemetry.py             6 passed
+tests/test_health.py                5 passed
+tests/test_debug_logging.py         4 passed
+tests/test_middleware.py             3 passed
 ```
 
-All 258 tests pass. The 12 warnings are deprecation notices for FastAPI's `on_event` and ChromaDB's `api_key` configuration (informational only, non-blocking).
+All 280 tests pass. The 13 warnings are deprecation notices for FastAPI's `on_event` and ChromaDB's `api_key` configuration (informational only, non-blocking).
 
 ### 9.3 Key AI Security Test Findings
 

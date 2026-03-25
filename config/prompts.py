@@ -217,8 +217,8 @@ reasoning. For each job, include a markdown link: `[View Original Posting](url)`
 multiple job searches, present them separately (e.g. "Search 1: ...", "Search 2: ...") so the \
 user can see all results.
 
-3. **Market Intelligence** — for EACH market_intel run, summarize skill gaps, upskilling \
-recommendations, salary insights, and industry trends. Present multiple runs separately if applicable.
+3. **Market Intelligence** — for EACH market_intel run, present in this order: industry trends, \
+salary insights, then skill gaps and upskilling recommendations. Present multiple runs separately if applicable.
 
 4. **Application Materials** — for EACH cover letter generated, summarize its key talking \
 points, which role/company it targets, and what strengths it highlights. If multiple cover \

@@ -12,7 +12,7 @@ JobAId runs a pipeline of 5 specialised agents coordinated by an FSM-based orche
 | **Resume Parser** | LLM-powered structured extraction (skills, experience, education), confidence assessment, PII de-biasing |
 | **Job Discovery & Matching** | Adzuna API search (MOCK_JOBS fallback), ChromaDB semantic matching, LLM-powered ranking with scoring rubric |
 | **Market Intelligence** | Skill gap analysis, RAG-powered upskilling roadmap with course recommendations, salary benchmarks, industry trends |
-| **Pitch Generator** | 4-step prompt chaining: company research (Wikipedia) → match analysis → draft generation → quality review |
+| **Pitch Generator** | 4-step prompt chaining: company research (Wikipedia/Tavily) → match analysis → draft generation → quality review; supports generic mode (no job) and handles unknown/missing company names |
 | **Summarizer** | Grounded explainability — feeds full session state (all results) to the LLM, generates markdown report with decision log |
 
 ## Architecture
@@ -228,7 +228,7 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 │   ├── chromadb_tools.py        # ChromaDB search/upsert helpers
 │   └── pii_sanitizer.py         # PII detection + de-biasing
 ├── vectordb/
-│   ├── collections.py           # ChromaDB collections (jobs, courses, trends)
+│   ├── collections.py           # ChromaDB collections (jobs, courses, trends, cover letters)
 │   ├── embeddings.py            # OpenAI text-embedding-3-small
 │   └── seed_data.py             # Seed collections from JSON
 ├── guardrails/
@@ -271,9 +271,10 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 ├── cli/
 │   └── main.py                  # CLI entry point
 ├── data/
-│   ├── seed_courses.json        # 15 course catalog entries
-│   ├── seed_salary_data.json    # 18 salary benchmarks (Singapore)
-│   └── seed_industry_trends.json # 12 industry trend articles
+│   ├── seed_courses.json        # 28 course catalog entries
+│   ├── seed_salary_data.json    # 60 salary benchmarks (Singapore)
+│   ├── seed_industry_trends.json # 18 industry trend articles
+│   └── seed_cover_letters.json  # 20 cover letter samples (diverse industries/levels)
 ├── tests/
 │   ├── conftest.py                # Shared test fixtures
 │   ├── test_input_filter.py       # AI security tests (prompt injection)
@@ -579,7 +580,7 @@ Triggered on every push and PR to `main`:
 Triggered via **manual dispatch only** (`workflow_dispatch` from the Actions tab):
 
 1. **Build & Push** — builds both Docker images, tags with git SHA + `latest`, pushes to ECR
-2. **Deploy** — SSHs into EC2, pulls latest images, runs `docker compose up -d`, verifies health check
+2. **Deploy** — SSHs into EC2, pulls latest images, runs `docker compose up -d`, verifies health check with automatic rollback to previous version on failure
 
 ## Monitoring & Observability
 
@@ -655,11 +656,12 @@ ChromaDB is automatically seeded on startup with:
 
 | Collection | Entries | Source |
 |---|---|---|
-| `courses_and_resources` | 15 courses | `data/seed_courses.json` |
-| `industry_trends` | 12 trend articles | `data/seed_industry_trends.json` |
+| `courses_and_resources` | 28 courses | `data/seed_courses.json` |
+| `industry_trends` | 18 trend articles | `data/seed_industry_trends.json` |
+| `cover_letter_samples` | 20 samples | `data/seed_cover_letters.json` |
 | `jobs` | Dynamic per run | Adzuna API / MOCK_JOBS |
 
-Salary benchmarks (18 entries) are loaded as structured JSON from `data/seed_salary_data.json`.
+Salary benchmarks (60 entries) are loaded as structured JSON from `data/seed_salary_data.json`.
 
 ## Dependencies
 
