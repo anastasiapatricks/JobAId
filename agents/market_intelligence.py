@@ -127,7 +127,7 @@ def _build_skill_gap_explanations(
         demanding_jobs = []
         for job in scored_jobs[:10]:
             job_keywords = [kw.lower() for kw in job.get("keywords", [])]
-            job_desc = (job.get("description", "") + " " + job.get("title", "")).lower()
+            job_desc = ((job.get("description") or "") + " " + (job.get("title") or "")).lower()
             if skill_lower in job_keywords or skill_lower in job_desc:
                 demanding_jobs.append(job.get("title", "Unknown"))
         gap["demanded_by_jobs"] = demanding_jobs[:5]
@@ -188,8 +188,8 @@ def skill_triage(state: Dict[str, Any]) -> Dict[str, Any]:
     latest = get_latest_results(state)
     resume_info = latest.get("resume_info") or state.get("resume_info") or {}
     resume_text_parts = [
-        resume_info.get("professional_summary", ""),
-        " ".join(t.get("description", "") for t in resume_info.get("experience", []) if isinstance(t, dict)),
+        resume_info.get("professional_summary") or "",
+        " ".join((t.get("description") or "") for t in resume_info.get("experience", []) if isinstance(t, dict)),
     ]
     resume_text = " ".join(resume_text_parts).lower()
     try:
