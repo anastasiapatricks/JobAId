@@ -218,6 +218,9 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
             debug(f"Pitch Generator: job data sanitized — {job_warnings}")
 
         company = best_job.get("company", "")
+        # Treat placeholder names as missing — skip company research for these
+        if company.lower() in ("unknown", "n/a", "not available", "not specified", ""):
+            company = ""
         job_title = best_job.get("title", "the role")
         job_location = best_job.get("location", "")
 
