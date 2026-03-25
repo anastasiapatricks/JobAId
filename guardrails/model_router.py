@@ -9,7 +9,7 @@ _TASK_MODEL_MAP = {
     "job_ranking": settings.default_model,
     "market_intelligence": settings.default_model,
     "pitch_draft": settings.default_model,
-    "pitch_review": settings.quality_model,  # Higher quality for final review
+    "pitch_review": settings.default_model,  # Same model as all other tasks
     "summarization": settings.default_model,
     "confidence_check": settings.default_model,
     "orchestration": settings.default_model,

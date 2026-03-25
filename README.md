@@ -12,7 +12,7 @@ JobAId runs a pipeline of 5 specialised agents coordinated by an FSM-based orche
 | **Resume Parser** | LLM-powered structured extraction (skills, experience, education), confidence assessment, PII de-biasing |
 | **Job Discovery & Matching** | Adzuna API search (MOCK_JOBS fallback), ChromaDB semantic matching, LLM-powered ranking with scoring rubric |
 | **Market Intelligence** | Skill gap analysis, RAG-powered upskilling roadmap with course recommendations, salary benchmarks, industry trends |
-| **Pitch Generator** | 4-step prompt chaining: company research (Wikipedia) → match analysis → draft generation → quality review |
+| **Pitch Generator** | 4-step prompt chaining: company research (Wikipedia/Tavily) → match analysis → draft generation → quality review; supports generic mode (no job) and handles unknown/missing company names |
 | **Summarizer** | Grounded explainability — feeds full session state (all results) to the LLM, generates markdown report with decision log |
 
 ## Architecture
@@ -62,7 +62,7 @@ Review stages are optional HITL (Human-in-the-Loop) checkpoints.
 - **Grounded summarisation** — summariser receives full session state (all results), generates markdown report with decision log
 - **Web search augmentation** — Tavily API for real-time course lookups, trend research, salary data, and company research (with RAG/seed-data fallbacks)
 - **Three-tier architecture** — Angular 20 chat UI, FastAPI REST API, and CLI
-- **Explainable AI (XAI)** — unified `explainability_trace` on every agent output, SHAP-like skill attribution (Shapley values), LIME-like perturbation analysis, and cover letter grounding verification
+- **Explainable AI (XAI)** — unified `explainability_trace` on every agent output, SHAP-like skill attribution (Shapley values), LIME-like perturbation analysis, cover letter grounding verification, and a dedicated **explainability drawer** in the UI (toolbar toggle) showing per-agent trace cards with confidence rings, grounding bars, SHAP bar charts, sources, warnings, and orchestrator decision timeline
 - **Fairness auditing** — Statistical Parity and Equal Opportunity checks (AIF360-inspired) run on every job search to detect location bias
 - **Prompt versioning** — all 6 agents have versioned prompts logged in every trace for MLSecOps audit and A/B evaluation
 
@@ -118,7 +118,7 @@ The API will be available at `http://localhost:8000`. Interactive docs at `http:
 
 ### 5. Run the Frontend
 
-Requires **Node.js 24+** and **npm 11+**.
+Requires **Node.js 22+** and **npm 10+**.
 
 ```bash
 cd frontend
@@ -222,13 +222,13 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 │   └── summarizer.py            # Grounded explainability summariser
 ├── tools/
 │   ├── job_board_api.py         # Adzuna API integration + MOCK_JOBS fallback
-│   ├── job_scrape.py            # MOCK_JOBS data (23 listings)
+│   ├── job_scrape.py            # MOCK_JOBS data (28 listings)
 │   ├── wikipedia.py             # Wikipedia REST API with disambiguation fallback
 │   ├── tavily_search.py         # Tavily web search (courses, trends, salary, company)
 │   ├── chromadb_tools.py        # ChromaDB search/upsert helpers
 │   └── pii_sanitizer.py         # PII detection + de-biasing
 ├── vectordb/
-│   ├── collections.py           # ChromaDB collections (jobs, courses, trends)
+│   ├── collections.py           # ChromaDB collections (jobs, courses, trends, cover letters)
 │   ├── embeddings.py            # OpenAI text-embedding-3-small
 │   └── seed_data.py             # Seed collections from JSON
 ├── guardrails/
@@ -255,14 +255,17 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 │   │   ├── app.routes.ts        # Routes: / and /session/:id
 │   │   ├── core/
 │   │   │   ├── models/          # TypeScript interfaces (session, pipeline, results, resume)
-│   │   │   ├── services/        # ApiService, SessionService, PipelineService, ChatService
+│   │   │   ├── services/        # ApiService, SessionService, PipelineService, ChatService,
+│   │   │   │                    #   XaiDrawerService, LoggingService
 │   │   │   └── interceptors/    # API URL interceptor (prepends backend base URL)
 │   │   ├── features/
 │   │   │   ├── chat/            # Chat page, message list, message bubble, input, typing indicator
 │   │   │   ├── resume/          # Resume upload (drag-drop + paste) and preview
 │   │   │   ├── pipeline/        # Pipeline progress stepper (5 stages)
-│   │   │   └── results/         # Job cards, skill gaps, upskilling roadmap, salary bar,
-│   │   │                        #   cover letter, summary, decision log
+│   │   │   ├── results/         # Job cards, skill gaps, upskilling roadmap, salary bar,
+│   │   │   │                    #   cover letter, summary, decision log
+│   │   │   └── explainability/  # XAI drawer: agent traces, SHAP charts, grounding bars,
+│   │   │                        #   confidence rings, decision timeline
 │   │   ├── shared/              # Toolbar, file drop zone, copy button, auto-scroll directive,
 │   │   │                        #   score-color pipe
 │   │   └── environments/        # Dev (localhost:8000) and prod API URLs
@@ -271,9 +274,10 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 ├── cli/
 │   └── main.py                  # CLI entry point
 ├── data/
-│   ├── seed_courses.json        # 15 course catalog entries
-│   ├── seed_salary_data.json    # 18 salary benchmarks (Singapore)
-│   └── seed_industry_trends.json # 12 industry trend articles
+│   ├── seed_courses.json        # 28 course catalog entries
+│   ├── seed_salary_data.json    # 60 salary benchmarks (Singapore)
+│   ├── seed_industry_trends.json # 18 industry trend articles
+│   └── seed_cover_letters.json  # 20 cover letter samples (diverse industries/levels)
 ├── tests/
 │   ├── conftest.py                # Shared test fixtures
 │   ├── test_input_filter.py       # AI security tests (prompt injection)
@@ -579,7 +583,7 @@ Triggered on every push and PR to `main`:
 Triggered via **manual dispatch only** (`workflow_dispatch` from the Actions tab):
 
 1. **Build & Push** — builds both Docker images, tags with git SHA + `latest`, pushes to ECR
-2. **Deploy** — SSHs into EC2, pulls latest images, runs `docker compose up -d`, verifies health check
+2. **Deploy** — SSHs into EC2, pulls latest images, runs `docker compose up -d`, verifies health check with automatic rollback to previous version on failure
 
 ## Monitoring & Observability
 
@@ -655,11 +659,12 @@ ChromaDB is automatically seeded on startup with:
 
 | Collection | Entries | Source |
 |---|---|---|
-| `courses_and_resources` | 15 courses | `data/seed_courses.json` |
-| `industry_trends` | 12 trend articles | `data/seed_industry_trends.json` |
+| `courses_and_resources` | 28 courses | `data/seed_courses.json` |
+| `industry_trends` | 18 trend articles | `data/seed_industry_trends.json` |
+| `cover_letter_samples` | 20 samples | `data/seed_cover_letters.json` |
 | `jobs` | Dynamic per run | Adzuna API / MOCK_JOBS |
 
-Salary benchmarks (18 entries) are loaded as structured JSON from `data/seed_salary_data.json`.
+Salary benchmarks (60 entries) are loaded as structured JSON from `data/seed_salary_data.json`.
 
 ## Dependencies
 
@@ -677,7 +682,7 @@ Salary benchmarks (18 entries) are loaded as structured JSON from `data/seed_sal
 - **python-docx** — DOCX resume parsing
 - **python-dotenv** — environment variable management
 
-### Frontend (Node.js 24+)
+### Frontend (Node.js 22+)
 
 - **Angular 20** — standalone components, signals, control flow syntax
 - **Angular Material 20** — Material 3 design components (toolbar, cards, chips, stepper, expansion panels)

@@ -36,19 +36,19 @@ import { CoverLetterComponent } from './components/cover-letter.component';
               />
             }
 
+            @if (show('salary_insights') && (entry.salary_insights || entry.market_outlook)) {
+              <jobaid-salary-insights
+                [salary]="entry.salary_insights || null"
+                [marketOutlook]="entry.market_outlook || ''"
+              />
+            }
+
             @if (show('skill_gaps') && entry.skill_gaps?.length) {
               <jobaid-skill-gaps [skillGaps]="entry.skill_gaps!" />
             }
 
             @if (show('upskilling_roadmap') && entry.upskilling_roadmap?.length) {
               <jobaid-upskilling-roadmap [roadmap]="entry.upskilling_roadmap!" />
-            }
-
-            @if (show('salary_insights') && (entry.salary_insights || entry.market_outlook)) {
-              <jobaid-salary-insights
-                [salary]="entry.salary_insights || null"
-                [marketOutlook]="entry.market_outlook || ''"
-              />
             }
 
             @if (show('final_pitch') && entry.final_pitch) {
