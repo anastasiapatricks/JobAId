@@ -1,6 +1,12 @@
 
+import json
+import time
+import logging
 import requests
-from utils import debug
+from datetime import datetime, timezone
+from utils import debug, _log_context
+
+_api_logger = logging.getLogger("jobaid.external")
 
 
 def get_company_summary(company_name: str) -> str:
@@ -25,6 +31,7 @@ def get_company_summary(company_name: str) -> str:
     formatted_name = company_name.strip().replace(" ", "_")
     debug(f"Wikipedia tool: Formatted company name: {formatted_name}")
 
+    start = time.time()
     # Try direct lookup
     data = fetch_summary(formatted_name)
 
@@ -40,10 +47,32 @@ def get_company_summary(company_name: str) -> str:
         if not data or "extract" not in data or not data["extract"]:
             data = fetch_summary(f"{formatted_name}_(organization)")
 
+    latency_ms = round((time.time() - start) * 1000, 1)
+
     # Return the final text if available
     if data and data.get("extract"):
         debug("Wikipedia tool: Successfully retrieved summary extract.")
+        _api_logger.info(json.dumps({
+            "event": "external_api_call",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "service": "wikipedia",
+            "operation": "get_company_summary",
+            "status": "success",
+            "latency_ms": latency_ms,
+            "company": company_name,
+            **_log_context(),
+        }))
         return data["extract"]
     else:
         debug("Wikipedia tool: Could not find a Wikipedia introduction for that name.")
+        _api_logger.info(json.dumps({
+            "event": "external_api_call",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "service": "wikipedia",
+            "operation": "get_company_summary",
+            "status": "not_found",
+            "latency_ms": latency_ms,
+            "company": company_name,
+            **_log_context(),
+        }))
         return f"No Wikipedia introduction found for '{company_name}'."

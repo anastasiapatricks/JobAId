@@ -12,9 +12,12 @@ from starlette.requests import Request
 
 logger = logging.getLogger("jobaid.api")
 
-# Context var for session_id — available to downstream code (e.g. logged_invoke)
+# Context vars — available to all downstream code for log correlation
 current_session_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "current_session_id", default=None
+)
+current_request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "current_request_id", default=None
 )
 
 _SESSION_RE = re.compile(r"/api/sessions/([0-9a-f-]{36})")
@@ -27,6 +30,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Attach request_id to request state for downstream use
         request.state.request_id = request_id
+
+        # Set both context vars for downstream log correlation
+        current_request_id.set(request_id)
 
         # Extract session_id from URL path and set in contextvars
         session_id = None

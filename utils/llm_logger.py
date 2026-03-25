@@ -33,6 +33,15 @@ def _get_session_id() -> str | None:
         return None
 
 
+def _get_request_id() -> str | None:
+    """Get request_id from middleware contextvar."""
+    try:
+        from api.middleware import current_request_id
+        return current_request_id.get()
+    except Exception:
+        return None
+
+
 class LLMCallLogger:
     """Tracks and logs LLM invocations per session."""
 
@@ -66,7 +75,12 @@ class LLMCallLogger:
             "completion_tokens": completion_tokens,
             "total_tokens": prompt_tokens + completion_tokens,
             "latency_ms": round(latency_ms, 1),
+            "status": "error" if error else "success",
         }
+
+        rid = _get_request_id()
+        if rid:
+            entry["request_id"] = rid
 
         if error:
             entry["error"] = error
@@ -94,6 +108,7 @@ def logged_invoke(llm, messages, task_type: str):
     Drop-in replacement for llm.invoke(messages) — returns the same response object.
     """
     session_id = _get_session_id()
+    request_id = _get_request_id()
     start = time.time()
     try:
         response = llm.invoke(messages)
@@ -112,6 +127,8 @@ def logged_invoke(llm, messages, task_type: str):
         }
         if session_id:
             entry["session_id"] = session_id
+        if request_id:
+            entry["request_id"] = request_id
         logger.info(json.dumps(entry))
         return response
     except Exception as e:
@@ -127,5 +144,7 @@ def logged_invoke(llm, messages, task_type: str):
         }
         if session_id:
             entry["session_id"] = session_id
+        if request_id:
+            entry["request_id"] = request_id
         logger.error(json.dumps(entry))
         raise

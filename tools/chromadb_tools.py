@@ -1,7 +1,13 @@
 """ChromaDB search and upsert tools for RAG."""
 
+import json
+import time
+import logging
 from typing import List, Dict, Any, Optional
-from utils import debug
+from datetime import datetime, timezone
+from utils import debug, _log_context
+
+_rag_logger = logging.getLogger("jobaid.rag")
 
 
 def search_collection(collection, query: str, n_results: int = 5, where: Optional[dict] = None) -> List[Dict[str, Any]]:
@@ -10,15 +16,39 @@ def search_collection(collection, query: str, n_results: int = 5, where: Optiona
     if where:
         kwargs["where"] = where
 
+    start = time.time()
     try:
         results = collection.query(**kwargs)
     except Exception as exc:
+        latency_ms = round((time.time() - start) * 1000, 1)
         debug(f"ChromaDB search error: {exc}")
+        _rag_logger.error(json.dumps({
+            "event": "rag_operation",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "operation": "search",
+            "collection": getattr(collection, "name", "unknown"),
+            "status": "error",
+            "latency_ms": latency_ms,
+            "error": str(exc)[:200],
+            **_log_context(),
+        }))
         return []
 
+    latency_ms = round((time.time() - start) * 1000, 1)
     documents = results.get("documents", [[]])[0]
     metadatas = results.get("metadatas", [[]])[0]
     distances = results.get("distances", [[]])[0]
+
+    _rag_logger.info(json.dumps({
+        "event": "rag_operation",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "operation": "search",
+        "collection": getattr(collection, "name", "unknown"),
+        "status": "success",
+        "latency_ms": latency_ms,
+        "result_count": len(documents),
+        **_log_context(),
+    }))
 
     return [
         {"document": doc, "metadata": meta, "distance": dist}
@@ -45,8 +75,31 @@ def upsert_jobs(collection, jobs: List[Dict[str, Any]]):
         })
         ids.append(f"job_{i}")
 
+    start = time.time()
     try:
         collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
+        latency_ms = round((time.time() - start) * 1000, 1)
         debug(f"Upserted {len(documents)} jobs into ChromaDB")
+        _rag_logger.info(json.dumps({
+            "event": "rag_operation",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "operation": "upsert",
+            "collection": getattr(collection, "name", "unknown"),
+            "status": "success",
+            "latency_ms": latency_ms,
+            "document_count": len(documents),
+            **_log_context(),
+        }))
     except Exception as exc:
+        latency_ms = round((time.time() - start) * 1000, 1)
         debug(f"ChromaDB upsert error: {exc}")
+        _rag_logger.error(json.dumps({
+            "event": "rag_operation",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "operation": "upsert",
+            "collection": getattr(collection, "name", "unknown"),
+            "status": "error",
+            "latency_ms": latency_ms,
+            "error": str(exc)[:200],
+            **_log_context(),
+        }))

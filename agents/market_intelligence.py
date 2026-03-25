@@ -16,7 +16,7 @@ from guardrails.output_filter import validate_market_intel_output
 from guardrails.model_router import get_model_for_task
 from tools.chromadb_tools import search_collection
 from tools.tavily_search import search_courses, search_trends, search_salary
-from utils import debug, get_latest_results
+from utils import debug, get_latest_results, _log_context
 from utils.llm_logger import logged_invoke
 
 _agent_logger = logging.getLogger("jobaid.market_intel")
@@ -403,10 +403,13 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
     if not valid:
         debug(f"Market Intel output validation issues: {issues}")
         _agent_logger.warning(json.dumps({
-            "event": "output_validation_warning",
+            "event": "guardrail_triggered",
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "output_validation",
+            "agent": "market_intelligence",
             "issues": issues,
             "prompt_version": MARKET_INTELLIGENCE_PROMPT_VERSION,
+            **_log_context(),
         }))
 
     # --- Explainability: enrich skill gaps with reasoning trace ---
