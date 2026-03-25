@@ -85,6 +85,7 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       gap: 10px;
       margin-bottom: 16px;
       max-width: 100%;
+      min-width: 0;
     }
 
     .message.user {
@@ -146,10 +147,17 @@ import { PIPELINE_DISPLAY_STAGES } from '../../../core/models/pipeline.model';
       border-radius: 18px 18px 6px 18px;
     }
 
-    .results-bubble {
-      flex: 1;
+    .message-content {
       min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .results-bubble {
+      min-width: 0;
+      max-width: 100%;
       padding: 8px 0;
+      overflow: hidden;
     }
 
     .text-content {
