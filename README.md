@@ -62,7 +62,7 @@ Review stages are optional HITL (Human-in-the-Loop) checkpoints.
 - **Grounded summarisation** — summariser receives full session state (all results), generates markdown report with decision log
 - **Web search augmentation** — Tavily API for real-time course lookups, trend research, salary data, and company research (with RAG/seed-data fallbacks)
 - **Three-tier architecture** — Angular 20 chat UI, FastAPI REST API, and CLI
-- **Explainable AI (XAI)** — unified `explainability_trace` on every agent output, SHAP-like skill attribution (Shapley values), LIME-like perturbation analysis, and cover letter grounding verification
+- **Explainable AI (XAI)** — unified `explainability_trace` on every agent output, SHAP-like skill attribution (Shapley values), LIME-like perturbation analysis, cover letter grounding verification, and a dedicated **explainability drawer** in the UI (toolbar toggle) showing per-agent trace cards with confidence rings, grounding bars, SHAP bar charts, sources, warnings, and orchestrator decision timeline
 - **Fairness auditing** — Statistical Parity and Equal Opportunity checks (AIF360-inspired) run on every job search to detect location bias
 - **Prompt versioning** — all 6 agents have versioned prompts logged in every trace for MLSecOps audit and A/B evaluation
 
@@ -118,7 +118,7 @@ The API will be available at `http://localhost:8000`. Interactive docs at `http:
 
 ### 5. Run the Frontend
 
-Requires **Node.js 24+** and **npm 11+**.
+Requires **Node.js 22+** and **npm 10+**.
 
 ```bash
 cd frontend
@@ -222,7 +222,7 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 │   └── summarizer.py            # Grounded explainability summariser
 ├── tools/
 │   ├── job_board_api.py         # Adzuna API integration + MOCK_JOBS fallback
-│   ├── job_scrape.py            # MOCK_JOBS data (23 listings)
+│   ├── job_scrape.py            # MOCK_JOBS data (28 listings)
 │   ├── wikipedia.py             # Wikipedia REST API with disambiguation fallback
 │   ├── tavily_search.py         # Tavily web search (courses, trends, salary, company)
 │   ├── chromadb_tools.py        # ChromaDB search/upsert helpers
@@ -255,14 +255,17 @@ You will be prompted to enter a resume file path, job search keywords, and optio
 │   │   ├── app.routes.ts        # Routes: / and /session/:id
 │   │   ├── core/
 │   │   │   ├── models/          # TypeScript interfaces (session, pipeline, results, resume)
-│   │   │   ├── services/        # ApiService, SessionService, PipelineService, ChatService
+│   │   │   ├── services/        # ApiService, SessionService, PipelineService, ChatService,
+│   │   │   │                    #   XaiDrawerService, LoggingService
 │   │   │   └── interceptors/    # API URL interceptor (prepends backend base URL)
 │   │   ├── features/
 │   │   │   ├── chat/            # Chat page, message list, message bubble, input, typing indicator
 │   │   │   ├── resume/          # Resume upload (drag-drop + paste) and preview
 │   │   │   ├── pipeline/        # Pipeline progress stepper (5 stages)
-│   │   │   └── results/         # Job cards, skill gaps, upskilling roadmap, salary bar,
-│   │   │                        #   cover letter, summary, decision log
+│   │   │   ├── results/         # Job cards, skill gaps, upskilling roadmap, salary bar,
+│   │   │   │                    #   cover letter, summary, decision log
+│   │   │   └── explainability/  # XAI drawer: agent traces, SHAP charts, grounding bars,
+│   │   │                        #   confidence rings, decision timeline
 │   │   ├── shared/              # Toolbar, file drop zone, copy button, auto-scroll directive,
 │   │   │                        #   score-color pipe
 │   │   └── environments/        # Dev (localhost:8000) and prod API URLs
@@ -679,7 +682,7 @@ Salary benchmarks (60 entries) are loaded as structured JSON from `data/seed_sal
 - **python-docx** — DOCX resume parsing
 - **python-dotenv** — environment variable management
 
-### Frontend (Node.js 24+)
+### Frontend (Node.js 22+)
 
 - **Angular 20** — standalone components, signals, control flow syntax
 - **Angular Material 20** — Material 3 design components (toolbar, cards, chips, stepper, expansion panels)

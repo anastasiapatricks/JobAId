@@ -21,13 +21,16 @@ All application logs are structured JSON emitted to stdout/stderr and forwarded 
 | `jobaid.llm` | `utils/llm_logger.py` | LLM call instrumentation |
 | `jobaid.frontend` | `api/routes/telemetry.py` | Frontend telemetry (batched from browser) |
 | `jobaid.guardrails` | `guardrails/*.py` | Guardrail trigger events |
+| `jobaid.external` | `tools/job_board_api.py`, `tools/tavily_search.py` | External API call logs (Adzuna, Tavily) |
+| `jobaid.session` | `api/dependencies.py` | Session lifecycle events (create, update, delete, evict) |
+| `jobaid.pipeline` | `graph/nodes.py` | Pipeline stage execution logs |
 | `jobaid.debug` | `utils/__init__.py` | Debug trace logs |
 
 ---
 
 ## 2. Accessing the Dashboard
 
-The pre-built CloudWatch Dashboard (`jobaid-dashboard`, defined in `infra/dashboard.tf`) provides 20+ widgets organised into five groups:
+The pre-built CloudWatch Dashboard (`jobaid-dashboard`, defined in `infra/dashboard.tf`) provides 19 widgets organised into five groups:
 
 1. **Infrastructure** — EC2 CPU utilisation, network I/O
 2. **API Health** — request throughput, error rate, latency percentiles, slowest endpoints
@@ -296,9 +299,12 @@ Then create a CloudWatch Alarm on the metric to get notified (e.g., via SNS) whe
   "completion_tokens": 450,
   "total_tokens": 1650,
   "latency_ms": 2100.5,
-  "status": "success"
+  "status": "success",
+  "error": "..."
 }
 ```
+
+> **Note:** The `status` field (`"success"` or `"error"`) and `error` field are present when logged via the `logged_invoke()` helper. Calls logged directly via `LLMCallLogger.log_call()` omit these fields.
 
 ### LLM Session Summary
 ```json

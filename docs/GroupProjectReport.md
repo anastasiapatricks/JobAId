@@ -292,7 +292,7 @@ The system is containerised and deployed to AWS using infrastructure-as-code:
 - `Adzuna API` — real job board search with location, keyword, and salary filters
 - `ChromaDB` — upserts job listings as vectors, retrieves top matches via semantic similarity
 - `ChatOpenAI` (GPT-4o-mini) — scores and ranks jobs against candidate profile
-- `MOCK_JOBS` fallback — 23 pre-defined job listings when Adzuna API is unavailable
+- `MOCK_JOBS` fallback — 28 pre-defined job listings when Adzuna API is unavailable
 
 **Communication:** Reads `resume_debiased` and `job_query` from state; writes `scored_jobs` with title, company, score, URL, and explanation.
 
@@ -380,6 +380,22 @@ All agents communicate via the **shared `JobAIdState` TypedDict** — a flat sta
 | **Market Intelligence** | Skill gaps are prioritised with reasoning; upskilling courses include provider, duration, and relevance |
 | **Pitch Generation** | Multi-step chain is logged — company research, match analysis, RAG sample retrieval, draft, review — showing how the cover letter was constructed; grounding score verifies pitch references actual candidate skills |
 | **Summarization** | Decision log captures every orchestrator decision with timestamp and reasoning; grounding score validates factual accuracy |
+
+**Frontend Explainability Drawer:**
+
+The Angular frontend provides a dedicated **explainability drawer** (toggled via a toolbar button with psychology icon) that surfaces XAI data to end users:
+
+- **Summary bar** — number of agents executed, average confidence percentage, total warning count
+- **Per-agent trace cards** — each agent result is displayed as a card with colour-coded left border, showing:
+  - Confidence ring (colour-coded: green ≥ 0.7, amber ≥ 0.4, red < 0.4)
+  - Reasoning text explaining the agent's decision process
+  - Grounding bar (visual 0.0–1.0 progress bar)
+  - **Key factors** — SHAP skill attributions rendered as bar charts (top 8, normalised), skill gap explanations with icons, or match analysis key-value pairs depending on agent type
+  - Sources consulted (chip list: "llm", "rag", "chromadb", "tavily", etc.)
+  - Warnings (expandable yellow strip)
+- **Orchestrator decision timeline** — chronological list of routing decisions with colour-coded dots (advance/retry/skip), showing stage → action → reasoning
+
+The drawer is implemented in `frontend/src/app/features/explainability/explainability-page.component.ts` with state managed by `XaiDrawerService` (signal-based open/close). A lightweight `explainability-panel.component.ts` provides inline XAI summaries within result cards.
 
 ### 5.2 Fairness and Bias Mitigation
 
