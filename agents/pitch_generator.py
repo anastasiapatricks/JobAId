@@ -114,9 +114,9 @@ def _get_candidate_contact(state: Dict[str, Any]) -> Dict[str, str]:
     if not isinstance(contact, dict):
         contact = {}
     return {
-        "name": contact.get("name", ""),
-        "email": contact.get("email", ""),
-        "phone": contact.get("phone", ""),
+        "name": contact.get("name") or "",
+        "email": contact.get("email") or "",
+        "phone": contact.get("phone") or "",
     }
 
 
@@ -134,20 +134,20 @@ def _replace_placeholders(
     """
     # Candidate PII replacements (from state, never sent to LLM)
     candidate_replacements = {
-        r"\[Candidate Name\]": candidate_contact.get("name", ""),
-        r"\[Your Name\]": candidate_contact.get("name", ""),
-        r"\[Candidate Email\]": candidate_contact.get("email", ""),
-        r"\[Your Email\]": candidate_contact.get("email", ""),
-        r"\[Email\]": candidate_contact.get("email", ""),
-        r"\[Candidate Phone\]": candidate_contact.get("phone", ""),
-        r"\[Your Phone\]": candidate_contact.get("phone", ""),
-        r"\[Your Phone Number\]": candidate_contact.get("phone", ""),
+        r"\[Candidate Name\]": candidate_contact.get("name") or "",
+        r"\[Your Name\]": candidate_contact.get("name") or "",
+        r"\[Candidate Email\]": candidate_contact.get("email") or "",
+        r"\[Your Email\]": candidate_contact.get("email") or "",
+        r"\[Email\]": candidate_contact.get("email") or "",
+        r"\[Candidate Phone\]": candidate_contact.get("phone") or "",
+        r"\[Your Phone\]": candidate_contact.get("phone") or "",
+        r"\[Your Phone Number\]": candidate_contact.get("phone") or "",
     }
 
     # Company data replacements (fallback if LLM still used placeholders)
-    company_addr = company_contact.get("office_address", "")
-    company_phone = company_contact.get("phone", "")
-    company_city = company_contact.get("city", "")
+    company_addr = company_contact.get("office_address") or ""
+    company_phone = company_contact.get("phone") or ""
+    company_city = company_contact.get("city") or ""
     # Treat "Not available" as empty
     if company_addr.lower() == "not available":
         company_addr = ""
@@ -479,7 +479,6 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
 
     valid, issues = validate_pitch_output(result)
     if not valid:
-        from datetime import datetime, timezone
         _guard_logger.warning(json.dumps({
             "event": "guardrail_triggered",
             "timestamp": datetime.now(timezone.utc).isoformat(),

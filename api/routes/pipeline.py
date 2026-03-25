@@ -120,12 +120,17 @@ def _run_single_step(session_id: str, action: str, state: dict):
         update_session(session_id, status="running", state=state)
         result = node_fn(state)
 
-        # Propagate any error/status messages from the agent into conversation
+        # Propagate any new messages from the agent into conversation
+        # (filter to only messages not already in state to avoid duplication)
         result_msgs = result.get("messages", [])
         if result_msgs:
-            msgs = list(state.get("messages") or [])
-            msgs.extend(result_msgs)
-            state["messages"] = msgs
+            existing = state.get("messages") or []
+            existing_set = {m.get("content", "") for m in existing}
+            new_msgs = [m for m in result_msgs if m.get("content", "") not in existing_set]
+            if new_msgs:
+                msgs = list(existing)
+                msgs.extend(new_msgs)
+                state["messages"] = msgs
 
         # Append result to the results array instead of merging flat
         results_arr = list(state.get("results", []))
@@ -238,6 +243,13 @@ def _run_single_step(session_id: str, action: str, state: dict):
                     "Your cover letter is ready! Want to pick another role, search for more jobs, or get a session summary?"
                 )})
             else:
+                # Extract the actual error from the entry for visibility
+                entry_errors = entry.get("errors", [])
+                if entry_errors:
+                    last_err = entry_errors[-1] if isinstance(entry_errors, list) else entry_errors
+                    err_detail = last_err.get("error", "") if isinstance(last_err, dict) else str(last_err)
+                    entry["pitch_error"] = err_detail
+                    logger.error(json.dumps({"event": "pitch_failed", "session_id": session_id, "error": err_detail[:500]}))
                 msgs.append({"role": "assistant", "content": (
                     "I wasn't able to generate a cover letter this time. Could you provide more details about the kind of role you're targeting?"
                 )})

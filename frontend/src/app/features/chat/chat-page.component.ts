@@ -758,12 +758,16 @@ export class ChatPageComponent implements OnInit, OnDestroy {
             const pitchResults = (results.results || []).filter((r: any) => r.action === 'pitching');
             const latestPitch = pitchResults[pitchResults.length - 1];
             const hasPitch = latestPitch?.final_pitch?.trim();
+            const pitchError = latestPitch?.['pitch_error'] || '';
+            const failText = pitchError
+              ? `Cover letter generation failed: ${pitchError}`
+              : 'I could not generate a cover letter. Try providing more details about the role you want.';
             const msg: any = {
               type: 'text',
               sender: 'system',
               text: hasPitch
                 ? 'Your cover letter is ready! What would you like to do next?'
-                : 'I could not generate a cover letter. Try providing more details about the role you want.',
+                : failText,
               suggestions: hasPitch
                 ? ['Find more jobs', 'Summarize my session', 'Pick another role']
                 : ['Find jobs for my profile', 'Analyze market trends for my profile'],
