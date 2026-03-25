@@ -120,6 +120,13 @@ def _run_single_step(session_id: str, action: str, state: dict):
         update_session(session_id, status="running", state=state)
         result = node_fn(state)
 
+        # Propagate any error/status messages from the agent into conversation
+        result_msgs = result.get("messages", [])
+        if result_msgs:
+            msgs = list(state.get("messages") or [])
+            msgs.extend(result_msgs)
+            state["messages"] = msgs
+
         # Append result to the results array instead of merging flat
         results_arr = list(state.get("results", []))
         entry = {"action": action, "timestamp": _now_iso()}
@@ -292,6 +299,7 @@ async def run_pipeline(session_id: str, req: PipelineRunRequest, background_task
     def _parse_and_await():
         from utils.llm_logger import set_session_id
         set_session_id(session_id)
+        reset_autonomy()  # Fresh LLM call budget for new session
         logger.info(json.dumps({"event": "parse_start", "session_id": session_id}))
         try:
             initial_state["current_stage"] = "parsing"
