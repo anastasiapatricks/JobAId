@@ -5,6 +5,7 @@ import re
 import logging
 from typing import Tuple
 from datetime import datetime, timezone
+from utils import _log_context
 
 _guard_logger = logging.getLogger("jobaid.guardrails")
 
@@ -65,6 +66,7 @@ def validate_resume_text(text: str) -> Tuple[bool, str]:
                 "guardrail": "prompt_injection",
                 "stage": "resume_input",
                 "detail": f"matched pattern: {pattern.pattern[:60]}",
+                **_log_context(),
             }))
             return False, "Input contains suspicious patterns and was rejected."
     return True, ""
@@ -84,6 +86,7 @@ def validate_job_query(query: str) -> Tuple[bool, str]:
                 "guardrail": "prompt_injection",
                 "stage": "job_query_input",
                 "detail": f"matched pattern: {pattern.pattern[:60]}",
+                **_log_context(),
             }))
             return False, "Input contains suspicious patterns and was rejected."
     # Content safety: block harmful/illegal job requests
@@ -95,6 +98,7 @@ def validate_job_query(query: str) -> Tuple[bool, str]:
                 "guardrail": "content_safety",
                 "stage": "job_query_input",
                 "detail": f"unsafe job request: {pattern.pattern[:60]}",
+                **_log_context(),
             }))
             return False, _UNSAFE_RESPONSE
     return True, ""
@@ -117,6 +121,7 @@ def validate_chat_message(message: str) -> Tuple[bool, str]:
                 "guardrail": "content_safety",
                 "stage": "chat_message",
                 "detail": f"unsafe request: {pattern.pattern[:60]}",
+                **_log_context(),
             }))
             return False, _UNSAFE_RESPONSE
     return True, ""
@@ -177,6 +182,7 @@ def sanitize_pitch_input(
             "guardrail": "input_length_trim",
             "stage": f"pitch_input_{source}",
             "detail": f"trimmed to {MAX_EXTERNAL_CONTENT_LENGTH} chars",
+            **_log_context(),
         }))
 
     found_injections = []
@@ -196,6 +202,7 @@ def sanitize_pitch_input(
             "guardrail": "indirect_prompt_injection",
             "stage": f"pitch_input_{source}",
             "detail": detail,
+            **_log_context(),
         }))
         return sanitized, False, detail
 

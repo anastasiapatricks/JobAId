@@ -421,9 +421,9 @@ def job_discovery(state: Dict[str, Any]) -> Dict[str, Any]:
     # so we match "incident response", "malware analysis" etc., not just tool names
     _resume_full = resume_info or {}
     _resume_text_parts = [
-        _resume_full.get("professional_summary", ""),
+        _resume_full.get("professional_summary") or "",
         " ".join(
-            e.get("description", "") for e in _resume_full.get("experience", [])
+            (e.get("description") or "") for e in _resume_full.get("experience", [])
             if isinstance(e, dict)
         ),
     ]

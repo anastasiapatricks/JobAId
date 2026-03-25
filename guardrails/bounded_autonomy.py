@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime, timezone
 from config.settings import settings
+from utils import _log_context
 
 _guard_logger = logging.getLogger("jobaid.guardrails")
 
@@ -34,6 +35,7 @@ class BoundedAutonomy:
                 "guardrail": "iteration_limit",
                 "stage": "orchestrator",
                 "detail": f"iteration {iteration_count} >= max {self.max_iterations}",
+                **_log_context(),
             }))
         return within
 
@@ -48,6 +50,7 @@ class BoundedAutonomy:
                 "guardrail": "stage_retry_limit",
                 "stage": stage,
                 "detail": f"retries {self._stage_retries[stage]} > max {self.max_retries_per_stage}",
+                **_log_context(),
             }))
         return allowed
 
@@ -65,6 +68,7 @@ class BoundedAutonomy:
                 "guardrail": "llm_call_limit",
                 "stage": "global",
                 "detail": f"llm calls {self._llm_call_count} > max {self.max_llm_calls}",
+                **_log_context(),
             }))
         return within
 

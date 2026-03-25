@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import httpx
 from config.settings import settings
 from tools.job_scrape import MOCK_JOBS
-from utils import debug
+from utils import debug, _log_context
 
 _api_logger = logging.getLogger("jobaid.external")
 
@@ -185,6 +185,7 @@ def _search_adzuna_once(query: str, location: str, num_results: int) -> List[Dic
             "status": "success",
             "latency_ms": latency_ms,
             "result_count": len(jobs),
+            **_log_context(),
         }))
         debug(f"Adzuna: found {len(jobs)} results")
         return jobs
@@ -198,6 +199,7 @@ def _search_adzuna_once(query: str, location: str, num_results: int) -> List[Dic
             "status": "error",
             "latency_ms": latency_ms,
             "error": str(exc)[:200],
+            **_log_context(),
         }))
         debug(f"Adzuna API error: {exc}")
         return []

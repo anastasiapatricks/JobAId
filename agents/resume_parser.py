@@ -1,6 +1,7 @@
 """LLM-powered resume parser with structured extraction and de-biasing."""
 
 import json
+import unicodedata
 from typing import Dict, Any
 
 from langchain_openai import ChatOpenAI
@@ -48,6 +49,8 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
     Returns state update with resume_info, resume_debiased, confidence, missing_fields.
     """
     resume_text = (state.get("resume_text") or "").strip()
+    # Normalize Unicode to ensure consistent LLM input across environments
+    resume_text = unicodedata.normalize("NFKC", resume_text)
 
     # Input validation
     valid, error_msg = validate_resume_text(resume_text)
@@ -60,7 +63,7 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     from agents.orchestrator import get_autonomy
-    llm = ChatOpenAI(model=get_model_for_task("resume_parsing"), temperature=0)
+    llm = ChatOpenAI(model=get_model_for_task("resume_parsing"), temperature=0, seed=42)
 
     # Step 1: Extract structured resume info
     debug("Resume Parser: extracting structured info via LLM")

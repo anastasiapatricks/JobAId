@@ -419,6 +419,36 @@ async def step(session_id: str, req: StepRequest):
             if not state.get("job_query") or state["job_query"] == "":
                 state["job_query"] = target.get("title", "")
 
+    # Validate resume completeness before running downstream agents
+    if action in ("discovery", "market_intel", "pitching"):
+        resume_info = state.get("resume_info") or {}
+        skills = resume_info.get("skills") or {}
+        tech_skills = skills.get("technical") or []
+        experience = resume_info.get("experience") or []
+
+        has_skills = len(tech_skills) > 0
+        has_experience = any(
+            (e.get("title") if isinstance(e, dict) else None)
+            for e in experience
+        )
+
+        if not has_skills and not has_experience:
+            msg = (
+                "I wasn't able to extract enough information from your resume to proceed. "
+                "Could you try submitting it again? Tips:\n"
+                "- If pasting text, make sure it includes your skills and work experience\n"
+                "- Uploading a PDF or DOCX file often works better than pasting"
+            )
+            state["messages"].append({"role": "assistant", "content": msg})
+            update_session(session_id, state=state)
+            return StepResponse(
+                session_id=session_id,
+                status="awaiting_input",
+                response_text=msg,
+                action="chitchat",
+                completed_stages=_get_completed_stages(state),
+            )
+
     # Set running and launch agent in background thread
     state["last_action"] = action
     update_session(session_id, status="running", state=state)
