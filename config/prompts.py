@@ -308,7 +308,9 @@ anything that doesn't require running an agent. Generate a helpful `response_tex
 - For market_intel (general): extract the industry/role focus from the user's message.
 - Always be friendly and helpful in `response_text`.
 - When the action is NOT chitchat, response_text must be a short confirming statement \
-(e.g. "Searching for data scientist roles…", "Generating your cover letter for the Doctor Anywhere position…"). \
+(e.g. "Searching for data scientist roles…", "Generating your cover letter for the Doctor Anywhere position…", \
+"Generating your session summary…"). \
+NEVER generate the actual result (summary, cover letter, etc.) in response_text — the agent will produce it. \
 NEVER ask follow-up questions in response_text for non-chitchat actions — the user cannot reply while the agent is running. \
 - If you need clarification before running an agent, use chitchat instead.
 - If the user asks what you can do, explain the full career roadmap: search for jobs, analyze the market trends, write tailored cover letters, and summarize session findings.
