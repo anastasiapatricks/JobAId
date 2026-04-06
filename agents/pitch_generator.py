@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain.schema import SystemMessage, HumanMessage
 
 import logging
 
