@@ -4,8 +4,7 @@ import json
 import unicodedata
 from typing import Dict, Any
 
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain.schema import SystemMessage, HumanMessage
 
 import logging
 
@@ -13,9 +12,10 @@ from config.settings import settings
 from config.prompts import RESUME_PARSER_SYSTEM, RESUME_PARSER_CONFIDENCE, RESUME_PARSER_PROMPT_VERSION
 from xai.trace import create_trace
 from guardrails.input_filter import spotlight_wrap, validate_resume_text
-from guardrails.output_filter import validate_resume_output
+from guardrails.output_filter import validate_resume_output, scan_output_for_pii
 from guardrails.model_router import get_model_for_task
-from tools.pii_sanitizer import strip_pii
+from guardrails.llm_factory import get_llm
+from tools.pii_sanitizer import strip_pii, filter_pii
 from utils import debug
 from utils.llm_logger import logged_invoke
 
@@ -62,8 +62,13 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
             "errors": list(state.get("errors") or []) + [{"stage": "parsing", "error": error_msg}],
         }
 
+    # Filter PII from raw text before LLM sees it
+    debug("Resume Parser: filtering PII from resume text")
+    filtered_resume_text, detected_pii = filter_pii(resume_text, use_ner=True)
+    debug(f"Resume Parser: detected and filtered {len(detected_pii)} PII entities")
+
     from agents.orchestrator import get_autonomy
-    llm = ChatOpenAI(model=get_model_for_task("resume_parsing"), temperature=0, seed=42)
+    llm = get_llm(model=get_model_for_task("resume_parsing"), temperature=0, task_type="resume_parsing")
 
     # Step 1: Extract structured resume info
     debug("Resume Parser: extracting structured info via LLM")
@@ -71,8 +76,14 @@ def resume_parser(state: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("LLM call limit exceeded")
     extraction_response = logged_invoke(llm, [
         SystemMessage(content=RESUME_PARSER_SYSTEM),
-        HumanMessage(content=spotlight_wrap(resume_text)),
+        HumanMessage(content=spotlight_wrap(filtered_resume_text)),
     ], "resume_extraction")
+
+    # Scan LLM output for PII leakage
+    is_safe, leaked_pii = scan_output_for_pii(extraction_response.content)
+    if not is_safe:
+        debug(f"Resume Parser: PII leakage detected in LLM output ({len(leaked_pii)} entities)")
+
     resume_info = _parse_json_response(extraction_response.content)
 
     if not resume_info:

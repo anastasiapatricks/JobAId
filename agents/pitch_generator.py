@@ -5,8 +5,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain.schema import SystemMessage, HumanMessage
 
 import logging
 
@@ -28,7 +27,9 @@ from guardrails.output_filter import (
     check_pitch_fabrication,
 )
 from guardrails.input_filter import sanitize_pitch_input, validate_pitch_job_data
+from guardrails.output_filter import validate_pitch_output, scan_output_for_pii
 from guardrails.model_router import get_model_for_task
+from guardrails.llm_factory import get_llm
 from tools.tavily_search import search_company, search_company_contact
 from tools.wikipedia import get_company_summary
 from tools.chromadb_tools import search_collection
@@ -197,7 +198,7 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
 
     from agents.orchestrator import get_autonomy
     candidate_summary = _build_candidate_summary(state)
-    llm = ChatOpenAI(model=get_model_for_task("pitch_draft"), temperature=0.7)
+    llm = get_llm(model=get_model_for_task("pitch_draft"), temperature=0.7)
 
     draft_pitches = []
 
@@ -385,7 +386,7 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     debug("Pitch Generator: Step 4 — quality review")
     if not get_autonomy().record_llm_call():
         raise RuntimeError("LLM call limit exceeded")
-    review_llm = ChatOpenAI(model=get_model_for_task("pitch_review"), temperature=0.7)
+    review_llm = get_llm(model=get_model_for_task("pitch_review"), temperature=0.7, task_type="pitch_review")
 
     # Provide context so reviewer can verify company details are real
     if generic_mode:
@@ -455,6 +456,15 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
             "issues": all_issues,
         }))
 
+    # Scan raw LLM output for PII leakage before placeholder replacement.
+    # The LLM is never given the candidate's real name/email/phone, so any
+    # PII found here is genuine leakage (hallucinated or leaked from context).
+    is_safe, leaked_pii = scan_output_for_pii(raw_final_pitch)
+    if not is_safe:
+        debug(f"Pitch Generator: PII leakage detected in raw LLM output ({len(leaked_pii)} entities), redacting...")
+        from tools.pii_sanitizer import filter_pii
+        raw_final_pitch, _ = filter_pii(raw_final_pitch, use_ner=True)
+
     # ─── Post-processing: replace placeholders with actual data ───
     candidate_contact = _get_candidate_contact(state)
     final_pitch = _replace_placeholders(
@@ -465,6 +475,8 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
         company_contact=company_contact,
     )
     debug("Pitch Generator: post-processing completed — placeholders replaced")
+
+    draft_pitches.append({"version": "final", "content": final_pitch})
 
     if generic_mode:
         msg = "[Pitch Generator] Generated general-purpose cover letter (3-step chain: analysis → draft → review)."

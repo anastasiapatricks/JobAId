@@ -100,6 +100,8 @@ TAVILY_API_KEY=your_tavily_api_key
 
 # Optional
 DEBUG=true
+LLM_PROVIDER=lmstudio|openai # (defaults to OpenAI; LM Studio for local LLM hosting)
+LMSTUDIO_BASE_URL=http://localhost:1234/v1 # LM Studio API URL (if using LM Studio as LLM provider)
 ```
 
 Get your OpenAI API key from: https://platform.openai.com/api-keys
