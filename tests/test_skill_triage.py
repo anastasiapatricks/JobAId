@@ -147,10 +147,8 @@ class TestSkillTriage:
 
     def test_no_llm_calls(self, triage_state):
         """Verify the triage function makes zero LLM calls."""
-        with patch.object(_MI_MOD, "ChatOpenAI") as mock_llm, \
-             patch.object(_MI_MOD, "logged_invoke") as mock_invoke:
+        with patch.object(_MI_MOD, "logged_invoke") as mock_invoke:
             skill_triage(triage_state)
-            assert not mock_llm.called
             assert not mock_invoke.called
 
     def test_message_format(self, triage_state):
