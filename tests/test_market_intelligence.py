@@ -556,7 +556,6 @@ class TestMarketIntelligenceAgent:
         with patch.object(_MI_MOD, "search_courses", return_value=""), \
              patch.object(_MI_MOD, "search_trends", return_value=""), \
              patch.object(_MI_MOD, "search_salary", return_value=""), \
-             patch.object(_MI_MOD, "ChatOpenAI", return_value=MagicMock()), \
              patch.object(_MI_MOD, "logged_invoke", return_value=mock_invoke_return,
                           side_effect=mock_invoke_side_effect) as mock_inv, \
              patch.object(_MI_MOD, "get_model_for_task", return_value="gpt-4o-mini"), \

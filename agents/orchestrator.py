@@ -4,13 +4,13 @@ import json
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
-from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
 from models.state import JobAIdState, OrchestratorStage
 from guardrails.bounded_autonomy import BoundedAutonomy
 from guardrails.input_filter import spotlight_wrap
 from guardrails.model_router import get_model_for_task
+from guardrails.llm_factory import get_llm
 from config.settings import settings
 from config.prompts import ORCHESTRATOR_ROUTER_SYSTEM, ORCHESTRATOR_PROMPT_VERSION
 from xai.trace import create_trace
@@ -243,10 +243,10 @@ def interpret_user_intent(user_message: str, state: dict) -> dict:
             "parameters": {},
         }
 
-    llm = ChatOpenAI(
+    llm = get_llm(
         model=get_model_for_task("orchestration"),
-        api_key=settings.openai_api_key,
         temperature=0.1,
+        task_type="orchestration"
     )
 
     # Build message list with recent conversation history for context
@@ -263,7 +263,7 @@ def interpret_user_intent(user_message: str, state: dict) -> dict:
         if role == "user":
             messages.append(HumanMessage(content=content))
         else:
-            from langchain.schema import AIMessage
+            from langchain_core.messages import AIMessage
             messages.append(AIMessage(content=content))
 
     # Add the current user message with a JSON reminder since conversation

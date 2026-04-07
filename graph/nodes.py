@@ -3,11 +3,12 @@
 import json
 import time
 import logging
+import traceback
 from typing import Dict, Any
 from datetime import datetime, timezone
 from models.state import JobAIdState
 from agents.orchestrator import handle_stage_error
-from utils import debug
+from utils import debug, _log_context
 
 logger = logging.getLogger("jobaid.pipeline")
 
@@ -26,10 +27,12 @@ def _safe_run(stage: str, fn, state: JobAIdState) -> Dict[str, Any]:
             "status": "success",
             "latency_ms": latency_ms,
             "session_id": session_id,
+            **_log_context(),
         }))
         return result
     except Exception as exc:
         latency_ms = round((time.time() - start) * 1000, 1)
+        tb = traceback.format_exc()
         logger.error(json.dumps({
             "event": "pipeline_stage",
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -38,8 +41,10 @@ def _safe_run(stage: str, fn, state: JobAIdState) -> Dict[str, Any]:
             "latency_ms": latency_ms,
             "session_id": session_id,
             "error": str(exc)[:200],
+            "traceback": tb[:1000],
+            **_log_context(),
         }))
-        debug(f"Node error in {stage}: {exc}")
+        debug(f"Node error in {stage}: {exc}\n{tb}")
         error_update = handle_stage_error(state, stage, str(exc))
         messages = list(state.get("messages") or [])
         messages.append({"role": "assistant", "content": f"[{stage}] Error: {exc}"})

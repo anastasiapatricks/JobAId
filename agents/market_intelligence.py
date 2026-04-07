@@ -5,7 +5,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
-from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
 from config.settings import settings
@@ -14,9 +13,10 @@ from xai.trace import create_trace
 from guardrails.input_filter import validate_job_query, sanitize_mi_external_data, check_mi_content_safety, spotlight_wrap
 from guardrails.output_filter import validate_market_intel_output, check_mi_pii_leakage, check_mi_skill_gap_grounding
 from guardrails.model_router import get_model_for_task
+from guardrails.llm_factory import get_llm
 from tools.chromadb_tools import search_collection
 from tools.tavily_search import search_courses, search_trends, search_salary
-from utils import debug, get_latest_results
+from utils import debug, get_latest_results, _log_context
 from utils.llm_logger import logged_invoke
 
 _agent_logger = logging.getLogger("jobaid.market_intel")
@@ -127,7 +127,7 @@ def _build_skill_gap_explanations(
         demanding_jobs = []
         for job in scored_jobs[:10]:
             job_keywords = [kw.lower() for kw in job.get("keywords", [])]
-            job_desc = (job.get("description", "") + " " + job.get("title", "")).lower()
+            job_desc = ((job.get("description") or "") + " " + (job.get("title") or "")).lower()
             if skill_lower in job_keywords or skill_lower in job_desc:
                 demanding_jobs.append(job.get("title", "Unknown"))
         gap["demanded_by_jobs"] = demanding_jobs[:5]
@@ -188,8 +188,8 @@ def skill_triage(state: Dict[str, Any]) -> Dict[str, Any]:
     latest = get_latest_results(state)
     resume_info = latest.get("resume_info") or state.get("resume_info") or {}
     resume_text_parts = [
-        resume_info.get("professional_summary", ""),
-        " ".join(t.get("description", "") for t in resume_info.get("experience", []) if isinstance(t, dict)),
+        resume_info.get("professional_summary") or "",
+        " ".join((t.get("description") or "") for t in resume_info.get("experience", []) if isinstance(t, dict)),
     ]
     resume_text = " ".join(resume_text_parts).lower()
     try:
@@ -375,7 +375,7 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
         from agents.orchestrator import get_autonomy
         if not get_autonomy().record_llm_call():
             raise RuntimeError("LLM call limit exceeded")
-        llm = ChatOpenAI(model=get_model_for_task("market_intelligence"), temperature=0)
+        llm = get_llm(model=get_model_for_task("market_intelligence"), temperature=0, task_type="market_intelligence")
         response = logged_invoke(llm, [
             SystemMessage(content=MARKET_INTELLIGENCE_SYSTEM),
             HumanMessage(content=user_prompt),
@@ -431,10 +431,13 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
     if not valid:
         debug(f"Market Intel output validation issues: {issues}")
         _agent_logger.warning(json.dumps({
-            "event": "output_validation_warning",
+            "event": "guardrail_triggered",
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "output_validation",
+            "agent": "market_intelligence",
             "issues": issues,
             "prompt_version": MARKET_INTELLIGENCE_PROMPT_VERSION,
+            **_log_context(),
         }))
 
     # --- Post-LLM PII leakage scan ---

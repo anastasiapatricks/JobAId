@@ -2,6 +2,9 @@
 
 import re
 from typing import Dict, Any, Tuple, List
+import logging
+
+_guard_logger = logging.getLogger("jobaid.guardrails")
 
 # Pitch-specific constants
 MAX_PITCH_LENGTH = 5000  # ~4 paragraphs max
@@ -279,6 +282,64 @@ def check_mi_skill_gap_grounding(
         )
 
     return (score, warnings)
+
+
+def scan_output_for_pii(output: str) -> Tuple[bool, List[Dict[str, Any]]]:
+    """Scan LLM output for PII leakage.
+
+    Detects if the LLM accidentally included PII in its response,
+    even after input filtering.
+
+    Args:
+        output: LLM response text to scan
+
+    Returns:
+        Tuple of (is_safe, detected_pii_entities)
+        - is_safe: True if no sensitive PII found
+        - detected_pii_entities: List of detected PII with type and text
+    """
+    from tools.pii_sanitizer import detect_pii
+
+    if not output:
+        return True, []
+
+    # Detect all PII using regex + NER
+    entities = detect_pii(output, use_ner=True)
+
+    # Filter to only highly sensitive PII types
+    # We allow: company names (ORG), locations (GPE), job-related dates
+    # We block: emails, phones, SSN, DOB, personal addresses, person names
+    sensitive_types = {
+        'EMAIL',
+        'PHONE',
+        'SSN',
+        'DATE_OF_BIRTH',
+        'ADDRESS',
+        'NER_PERSON',  # Person names
+        'LINKEDIN_URL',
+        'GITHUB_URL',
+    }
+
+    sensitive_pii = [
+        e for e in entities
+        if e.get('type') in sensitive_types
+    ]
+
+    is_safe = len(sensitive_pii) == 0
+
+    if not is_safe:
+        # Log the leakage for monitoring
+        import json
+        from datetime import datetime, timezone
+        _guard_logger.warning(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "output_pii_leakage",
+            "detail": f"Detected {len(sensitive_pii)} PII entities in LLM output",
+            "entities": [{"type": e["type"], "text": e["text"][:20]} for e in sensitive_pii[:5]],
+        }))
+
+    return is_safe, sensitive_pii
 
 
 def check_grounding(summary: str, state: Dict[str, Any]) -> float:

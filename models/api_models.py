@@ -68,7 +68,6 @@ class PipelineResultsResponse(BaseModel):
     results: List[ResultEntry] = Field(default_factory=list)
     completed_stages: List[str] = Field(default_factory=list)
     selected_job: Optional[Dict[str, Any]] = None
-    awaiting_cv_confirmation: bool = False
 
 
 class StepRequest(BaseModel):

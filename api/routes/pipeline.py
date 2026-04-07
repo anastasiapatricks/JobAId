@@ -9,14 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 
-import re
-
 logger = logging.getLogger("jobaid.api")
-
-_AFFIRMATIVE = re.compile(
-    r"\b(yes|yeah|yep|yup|sure|ok|okay|go ahead|write it|generate|create|do it|please)\b",
-    re.IGNORECASE,
-)
 from models.api_models import (
     PipelineRunRequest,
     PipelineStatusResponse,
@@ -127,6 +120,18 @@ def _run_single_step(session_id: str, action: str, state: dict):
         update_session(session_id, status="running", state=state)
         result = node_fn(state)
 
+        # Propagate any new messages from the agent into conversation
+        # (filter to only messages not already in state to avoid duplication)
+        result_msgs = result.get("messages", [])
+        if result_msgs:
+            existing = state.get("messages") or []
+            existing_set = {m.get("content", "") for m in existing}
+            new_msgs = [m for m in result_msgs if m.get("content", "") not in existing_set]
+            if new_msgs:
+                msgs = list(existing)
+                msgs.extend(new_msgs)
+                state["messages"] = msgs
+
         # Append result to the results array instead of merging flat
         results_arr = list(state.get("results", []))
         entry = {"action": action, "timestamp": _now_iso()}
@@ -221,7 +226,6 @@ def _run_single_step(session_id: str, action: str, state: dict):
             title = selected.get("title", "")
             company = selected.get("company", "")
             if title:
-                state["_awaiting_cv_confirmation"] = True
                 job_label = f"**{title}**" + (f" at **{company}**" if company else "")
                 confirm_msg = (
                     f"That's the market research for {job_label}. "
@@ -233,9 +237,22 @@ def _run_single_step(session_id: str, action: str, state: dict):
                     "suggestions": ["Yes, write the cover letter"],
                 })
         elif action == "pitching":
-            msgs.append({"role": "assistant", "content": (
-                "Your cover letter is ready! Want to pick another role, search for more jobs, or get a session summary?"
-            )})
+            pitch_content = entry.get("final_pitch", "")
+            if pitch_content:
+                msgs.append({"role": "assistant", "content": (
+                    "Your cover letter is ready! Want to pick another role, search for more jobs, or get a session summary?"
+                )})
+            else:
+                # Extract the actual error from the entry for visibility
+                entry_errors = entry.get("errors", [])
+                if entry_errors:
+                    last_err = entry_errors[-1] if isinstance(entry_errors, list) else entry_errors
+                    err_detail = last_err.get("error", "") if isinstance(last_err, dict) else str(last_err)
+                    entry["pitch_error"] = err_detail
+                    logger.error(json.dumps({"event": "pitch_failed", "session_id": session_id, "error": err_detail[:500]}))
+                msgs.append({"role": "assistant", "content": (
+                    "I wasn't able to generate a cover letter this time. Could you provide more details about the kind of role you're targeting?"
+                )})
         state["messages"] = msgs
 
         update_session(session_id, status="awaiting_input", state=state, result=state)
@@ -245,6 +262,13 @@ def _run_single_step(session_id: str, action: str, state: dict):
         errors = list(state.get("errors") or [])
         errors.append({"stage": action, "error": str(exc)})
         state["errors"] = errors
+        # Add user-visible error message
+        _action_labels = {"discovery": "job search", "market_intel": "market analysis",
+                          "pitching": "cover letter generation", "summarizing": "session summary"}
+        msgs = list(state.get("messages") or [])
+        msgs.append({"role": "assistant", "content":
+            f"Sorry, something went wrong during {_action_labels.get(action, action)}. Please try again."})
+        state["messages"] = msgs
         update_session(session_id, status="awaiting_input", state=state)
 
 
@@ -287,6 +311,7 @@ async def run_pipeline(session_id: str, req: PipelineRunRequest, background_task
     def _parse_and_await():
         from utils.llm_logger import set_session_id
         set_session_id(session_id)
+        reset_autonomy()  # Fresh LLM call budget for new session
         logger.info(json.dumps({"event": "parse_start", "session_id": session_id}))
         try:
             initial_state["current_stage"] = "parsing"
@@ -350,21 +375,12 @@ async def step(session_id: str, req: StepRequest):
         "message": req.message[:200],
     }))
 
-    # If we're waiting for CV confirmation, intercept affirmative replies without
-    # going to the LLM — the LLM keeps re-routing job names back to market_intel
-    if state.get("_awaiting_cv_confirmation") and _AFFIRMATIVE.search(req.message):
-        action = "pitching"
-        response_text = "Generating your cover letter now…"
-        parameters = {}
-        state["_awaiting_cv_confirmation"] = False
-        logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action, "via": "cv_confirmation_intercept"}))
-    else:
-        # Let the orchestrator LLM interpret the user's intent
-        intent = interpret_user_intent(req.message, state)
-        action = intent.get("action", "chitchat")
-        response_text = intent.get("response_text", "")
-        logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
-        parameters = intent.get("parameters") or {}
+    # Let the orchestrator LLM interpret the user's intent
+    intent = interpret_user_intent(req.message, state)
+    action = intent.get("action", "chitchat")
+    response_text = intent.get("response_text", "")
+    logger.info(json.dumps({"event": "step_intent", "session_id": session_id, "action": action}))
+    parameters = intent.get("parameters") or {}
 
     # Persist assistant response to state for future context
     if response_text:
@@ -402,6 +418,36 @@ async def step(session_id: str, req: StepRequest):
             state["_selected_job"] = target
             if not state.get("job_query") or state["job_query"] == "":
                 state["job_query"] = target.get("title", "")
+
+    # Validate resume completeness before running downstream agents
+    if action in ("discovery", "market_intel", "pitching"):
+        resume_info = state.get("resume_info") or {}
+        skills = resume_info.get("skills") or {}
+        tech_skills = skills.get("technical") or []
+        experience = resume_info.get("experience") or []
+
+        has_skills = len(tech_skills) > 0
+        has_experience = any(
+            (e.get("title") if isinstance(e, dict) else None)
+            for e in experience
+        )
+
+        if not has_skills and not has_experience:
+            msg = (
+                "I wasn't able to extract enough information from your resume to proceed. "
+                "Could you try submitting it again? Tips:\n"
+                "- If pasting text, make sure it includes your skills and work experience\n"
+                "- Uploading a PDF or DOCX file often works better than pasting"
+            )
+            state["messages"].append({"role": "assistant", "content": msg})
+            update_session(session_id, state=state)
+            return StepResponse(
+                session_id=session_id,
+                status="awaiting_input",
+                response_text=msg,
+                action="chitchat",
+                completed_stages=_get_completed_stages(state),
+            )
 
     # Set running and launch agent in background thread
     state["last_action"] = action
@@ -490,5 +536,4 @@ async def get_results(session_id: str):
         results=result_entries,
         completed_stages=_get_completed_stages(state),
         selected_job=state.get("_selected_job"),
-        awaiting_cv_confirmation=bool(state.get("_awaiting_cv_confirmation")),
     )

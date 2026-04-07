@@ -106,5 +106,4 @@ export interface PipelineResults {
   results: ResultEntry[];
   completed_stages?: string[];
   selected_job?: Record<string, unknown> | null;
-  awaiting_cv_confirmation?: boolean;
 }

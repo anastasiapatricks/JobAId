@@ -148,6 +148,8 @@ import { ScoredJob, SkillTriageEntry } from '../../../core/models/results.model'
       border: 1px solid var(--mat-sys-outline-variant);
       background: var(--mat-sys-surface);
       position: relative;
+      max-width: 100%;
+      box-sizing: border-box;
     }
     .job-card:hover {
       transform: translateY(-4px);
@@ -163,21 +165,28 @@ import { ScoredJob, SkillTriageEntry } from '../../../core/models/results.model'
     }
     .card-inner {
       padding: 12px;
+      min-width: 0;
+      overflow: hidden;
     }
     .header-main {
       width: 100%;
+      min-width: 0;
     }
     .title-row {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       margin-bottom: 8px;
+      min-width: 0;
     }
     .job-title {
       font-size: 1.35rem;
       font-weight: 700;
       line-height: 1.25;
       margin: 0;
+      min-width: 0;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
       a {
         color: var(--mat-sys-on-surface);
         text-decoration: none;
@@ -250,6 +259,8 @@ import { ScoredJob, SkillTriageEntry } from '../../../core/models/results.model'
       align-items: center;
       gap: 6px;
       font-size: 0.9rem;
+      min-width: 0;
+      span { overflow-wrap: break-word; word-break: break-word; }
       mat-icon {
         font-size: 18px;
         width: 18px;
@@ -267,7 +278,8 @@ import { ScoredJob, SkillTriageEntry } from '../../../core/models/results.model'
       margin: 20px 0;
       font-size: 0.925rem;
       border-left: 4px solid var(--mat-sys-primary);
-      p { margin: 0; line-height: 1.5; }
+      min-width: 0;
+      p { margin: 0; line-height: 1.5; word-wrap: break-word; overflow-wrap: break-word; }
       .match-icon {
         font-size: 20px;
         width: 20px;

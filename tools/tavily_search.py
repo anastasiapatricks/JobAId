@@ -6,7 +6,7 @@ import logging
 from typing import List
 from datetime import datetime, timezone
 
-from utils import debug
+from utils import debug, _log_context
 
 _api_logger = logging.getLogger("jobaid.external")
 
@@ -59,6 +59,7 @@ def search_courses(skill_gaps: List[str], job_query: str) -> str:
             "status": "success",
             "latency_ms": latency_ms,
             "result_count": len(results),
+            **_log_context(),
         }))
         if not results:
             return ""
@@ -73,6 +74,7 @@ def search_courses(skill_gaps: List[str], job_query: str) -> str:
             "status": "error",
             "latency_ms": latency_ms,
             "error": str(exc)[:200],
+            **_log_context(),
         }))
         debug(f"Tavily courses search error: {exc}")
         return ""
@@ -98,6 +100,7 @@ def search_trends(job_query: str) -> str:
             "status": "success",
             "latency_ms": latency_ms,
             "result_count": len(results),
+            **_log_context(),
         }))
         if not results:
             return ""
@@ -112,6 +115,7 @@ def search_trends(job_query: str) -> str:
             "status": "error",
             "latency_ms": latency_ms,
             "error": str(exc)[:200],
+            **_log_context(),
         }))
         debug(f"Tavily trends search error: {exc}")
         return ""
@@ -138,6 +142,7 @@ def search_salary(job_query: str, years_exp: int | None) -> str:
             "status": "success",
             "latency_ms": latency_ms,
             "result_count": len(results),
+            **_log_context(),
         }))
         if not results:
             return ""
@@ -152,6 +157,7 @@ def search_salary(job_query: str, years_exp: int | None) -> str:
             "status": "error",
             "latency_ms": latency_ms,
             "error": str(exc)[:200],
+            **_log_context(),
         }))
         debug(f"Tavily salary search error: {exc}")
         return ""
@@ -179,6 +185,7 @@ def search_company(company_name: str) -> str:
             "status": "success",
             "latency_ms": latency_ms,
             "result_count": len(results),
+            **_log_context(),
         }))
         if not results:
             return ""
@@ -193,6 +200,7 @@ def search_company(company_name: str) -> str:
             "status": "error",
             "latency_ms": latency_ms,
             "error": str(exc)[:200],
+            **_log_context(),
         }))
         debug(f"Tavily company search error: {exc}")
         return ""
@@ -221,6 +229,7 @@ def search_company_contact(company_name: str, location: str) -> str:
             "status": "success",
             "latency_ms": latency_ms,
             "result_count": len(results),
+            **_log_context(),
         }))
         if not results:
             return ""
@@ -235,6 +244,7 @@ def search_company_contact(company_name: str, location: str) -> str:
             "status": "error",
             "latency_ms": latency_ms,
             "error": str(exc)[:200],
+            **_log_context(),
         }))
         debug(f"Tavily company contact search error: {exc}")
         return ""
