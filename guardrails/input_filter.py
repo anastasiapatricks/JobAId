@@ -202,6 +202,80 @@ def sanitize_pitch_input(
     return sanitized, True, ""
 
 
+# ─── Market Intelligence external data sanitization ───
+# MI processes external data from Tavily web search and ChromaDB RAG results.
+# These can contain injection attempts or harmful content, similar to the
+# indirect injection risk in the pitch generator.
+
+MAX_MI_EXTERNAL_CONTENT_LENGTH = 8_000  # Max chars per external context block
+
+
+def sanitize_mi_external_data(
+    text: str, source: str
+) -> Tuple[str, bool, str]:
+    """Sanitize external data (Tavily results, ChromaDB docs) before MI LLM prompt.
+
+    Scans for indirect prompt injection and enforces length limits.
+    Returns (sanitized_text, is_safe, detail).
+    """
+    if not text:
+        return text, True, ""
+
+    # Length cap — prevent context stuffing attacks
+    if len(text) > MAX_MI_EXTERNAL_CONTENT_LENGTH:
+        text = text[:MAX_MI_EXTERNAL_CONTENT_LENGTH]
+        _guard_logger.info(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "input_length_limit",
+            "stage": f"market_intel_{source}",
+            "detail": f"trimmed to {MAX_MI_EXTERNAL_CONTENT_LENGTH} chars",
+        }))
+
+    found_injections = []
+    sanitized = text
+    for pattern in _INDIRECT_INJECTION_PATTERNS:
+        match = pattern.search(sanitized)
+        if match:
+            found_injections.append(pattern.pattern[:60])
+            sanitized = pattern.sub("[FILTERED]", sanitized)
+
+    if found_injections:
+        detail = f"indirect injection in MI {source}: {found_injections}"
+        _guard_logger.warning(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "indirect_prompt_injection",
+            "stage": f"market_intel_{source}",
+            "detail": detail,
+        }))
+        return sanitized, False, detail
+
+    return sanitized, True, ""
+
+
+def check_mi_content_safety(text: str, source: str) -> Tuple[bool, str]:
+    """Check external data fed to MI for harmful/illegal content.
+
+    Returns (is_safe, detail). Blocks content that references illegal
+    activities, which could manipulate MI into recommending harmful career paths.
+    """
+    if not text:
+        return True, ""
+    for pattern in _UNSAFE_JOB_PATTERNS:
+        if pattern.search(text):
+            detail = f"unsafe content in MI {source}: {pattern.pattern[:60]}"
+            _guard_logger.warning(json.dumps({
+                "event": "guardrail_triggered",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "guardrail": "content_safety",
+                "stage": f"market_intel_{source}",
+                "detail": detail,
+            }))
+            return False, detail
+    return True, ""
+
+
 def validate_pitch_job_data(job: dict) -> Tuple[dict, bool, list]:
     """Validate and sanitize job listing data before pitch generation.
 

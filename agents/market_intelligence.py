@@ -11,8 +11,8 @@ from langchain.schema import SystemMessage, HumanMessage
 from config.settings import settings
 from config.prompts import MARKET_INTELLIGENCE_SYSTEM, MARKET_INTELLIGENCE_PROMPT_VERSION
 from xai.trace import create_trace
-from guardrails.input_filter import validate_job_query
-from guardrails.output_filter import validate_market_intel_output
+from guardrails.input_filter import validate_job_query, sanitize_mi_external_data, check_mi_content_safety, spotlight_wrap
+from guardrails.output_filter import validate_market_intel_output, check_mi_pii_leakage, check_mi_skill_gap_grounding
 from guardrails.model_router import get_model_for_task
 from tools.chromadb_tools import search_collection
 from tools.tavily_search import search_courses, search_trends, search_salary
@@ -319,20 +319,48 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
     salary_web_context = search_salary(job_query, years_exp)
     salary_insights = _lookup_salary(job_query, years_exp)
 
-    # LLM analysis
+    # --- Guardrails: sanitize external data (indirect injection + content safety + length limit) ---
+    guardrail_warnings = []
+    for source_name, ctx in [("courses", courses_context), ("trends", trends_context), ("salary_web", salary_web_context)]:
+        if not ctx:
+            continue
+        # Content safety — block harmful career path manipulation
+        safe, detail = check_mi_content_safety(ctx, source_name)
+        if not safe:
+            guardrail_warnings.append(detail)
+            _agent_logger.warning(json.dumps({
+                "event": "guardrail_triggered",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "guardrail": "content_safety",
+                "stage": f"market_intel_{source_name}",
+                "detail": detail,
+            }))
+
+    # Indirect injection + input length limit
+    courses_context, courses_safe, courses_detail = sanitize_mi_external_data(courses_context or "", "courses")
+    if not courses_safe:
+        guardrail_warnings.append(courses_detail)
+    trends_context, trends_safe, trends_detail = sanitize_mi_external_data(trends_context or "", "trends")
+    if not trends_safe:
+        guardrail_warnings.append(trends_detail)
+    salary_web_context, salary_safe, salary_detail = sanitize_mi_external_data(salary_web_context or "", "salary_web")
+    if not salary_safe:
+        guardrail_warnings.append(salary_detail)
+
+    # LLM analysis — spotlight wrap external data to prevent injection
     prompt_parts = [
         f"Candidate skills: {', '.join(candidate_skills)}",
         f"Years of experience: {years_exp or 'Unknown'}",
         f"Target job requirements (from top matches): {', '.join(job_requirements)}",
         f"Job query: {job_query}",
         "",
-        courses_context or "",
+        spotlight_wrap(courses_context) if courses_context else "",
         "",
-        trends_context or "",
+        spotlight_wrap(trends_context) if trends_context else "",
         "",
     ]
     if salary_web_context:
-        prompt_parts.append(salary_web_context)
+        prompt_parts.append(spotlight_wrap(salary_web_context))
         prompt_parts.append("")
     prompt_parts.append(
         f"Salary data: {json.dumps(salary_insights) if salary_insights else 'Not available'}"
@@ -409,6 +437,35 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
             "prompt_version": MARKET_INTELLIGENCE_PROMPT_VERSION,
         }))
 
+    # --- Post-LLM PII leakage scan ---
+    pii_clean, pii_issues = check_mi_pii_leakage(validation_result)
+    if not pii_clean:
+        debug(f"Market Intel PII leakage detected: {pii_issues}")
+        _agent_logger.warning(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "pii_leakage_scan",
+            "stage": "market_intel_output",
+            "detail": str(pii_issues),
+        }))
+        guardrail_warnings.extend(pii_issues)
+
+    # --- Skill gap grounding check ---
+    gap_grounding_score, gap_grounding_warnings = check_mi_skill_gap_grounding(
+        skill_gaps, job_requirements, candidate_skills
+    )
+    if gap_grounding_warnings:
+        debug(f"Market Intel skill gap grounding issues: {gap_grounding_warnings}")
+        _agent_logger.warning(json.dumps({
+            "event": "guardrail_triggered",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "guardrail": "skill_gap_grounding",
+            "stage": "market_intel_output",
+            "detail": str(gap_grounding_warnings),
+            "grounding_score": gap_grounding_score,
+        }))
+        guardrail_warnings.extend(gap_grounding_warnings)
+
     # --- Explainability: enrich skill gaps with reasoning trace ---
     scored_jobs = latest.get("scored_jobs") or state.get("scored_jobs") or []
     skill_gaps = _build_skill_gap_explanations(
@@ -437,6 +494,9 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
             for item in upskilling_roadmap
         ),
         "output_valid": valid,
+        "pii_clean": pii_clean,
+        "skill_gap_grounding": gap_grounding_score,
+        "guardrail_warnings_count": len(guardrail_warnings),
     }))
 
     # Build message
@@ -461,6 +521,8 @@ def market_intelligence(state: Dict[str, Any]) -> Dict[str, Any]:
         xai_warnings.append(f"Low course grounding: {grounded_courses}/{total_courses} verified")
     if not valid:
         xai_warnings.extend(issues)
+    if guardrail_warnings:
+        xai_warnings.extend(guardrail_warnings)
 
     sources = []
     if courses_context:

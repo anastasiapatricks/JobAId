@@ -208,6 +208,79 @@ def validate_market_intel_output(result: Dict[str, Any]) -> Tuple[bool, List[str
     return (len(issues) == 0, issues)
 
 
+def check_mi_pii_leakage(result: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    """Check that market intelligence output does not leak PII from the resume.
+
+    MI receives de-biased resume data, but the LLM could hallucinate or
+    reconstruct PII (names, emails, phone numbers) in its output text fields
+    like market_outlook or skill gap explanations.
+    """
+    issues = []
+    # Scan all string fields in the output
+    text_fields = [
+        ("market_outlook", result.get("market_outlook", "")),
+    ]
+    # Also scan skill gap and roadmap text
+    for i, gap in enumerate(result.get("skill_gaps", [])[:10]):
+        if isinstance(gap, dict):
+            text_fields.append((f"skill_gaps[{i}].skill", gap.get("skill", "")))
+    for i, item in enumerate(result.get("upskilling_roadmap", [])[:10]):
+        if isinstance(item, dict):
+            text_fields.append((f"upskilling_roadmap[{i}].skill", item.get("skill", "")))
+    for i, trend in enumerate(result.get("industry_trends", [])[:10]):
+        if isinstance(trend, str):
+            text_fields.append((f"industry_trends[{i}]", trend))
+
+    for field_name, text in text_fields:
+        if not isinstance(text, str):
+            continue
+        if _EMAIL_PATTERN.search(text):
+            issues.append(f"{field_name} contains email address — possible PII leakage")
+        if _PHONE_PATTERN.search(text):
+            issues.append(f"{field_name} contains phone number — possible PII leakage")
+
+    return (len(issues) == 0, issues)
+
+
+def check_mi_skill_gap_grounding(
+    skill_gaps: list, job_requirements: list, candidate_skills: list
+) -> Tuple[float, List[str]]:
+    """Verify that identified skill gaps are grounded in actual job data.
+
+    Returns (grounding_score 0.0-1.0, warnings). A gap is considered grounded
+    if the skill appears in the job requirements OR is a reasonable semantic
+    neighbour. Completely fabricated skill gaps lower the score.
+    """
+    warnings = []
+    if not skill_gaps:
+        return (1.0, [])
+
+    # Build a reference set from job requirements + candidate skills
+    reference_lower = {s.lower() for s in job_requirements + candidate_skills if s}
+
+    grounded = 0
+    for gap in skill_gaps:
+        skill_name = gap.get("skill", "") if isinstance(gap, dict) else str(gap)
+        skill_lower = skill_name.lower()
+        # Direct match
+        if skill_lower in reference_lower:
+            grounded += 1
+            continue
+        # Partial match (e.g. "Terraform" matches "terraform associate")
+        if any(skill_lower in ref or ref in skill_lower for ref in reference_lower):
+            grounded += 1
+            continue
+
+    score = grounded / len(skill_gaps)
+    if score < 0.5:
+        warnings.append(
+            f"Low skill gap grounding: {grounded}/{len(skill_gaps)} gaps trace to job data "
+            "— LLM may have fabricated skill requirements"
+        )
+
+    return (score, warnings)
+
+
 def check_grounding(summary: str, state: Dict[str, Any]) -> float:
     """Simple grounding check — verify summary references state data.
 
