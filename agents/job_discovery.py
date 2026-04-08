@@ -7,7 +7,7 @@ and LLM-powered ranking with scoring rubric.
 import json
 from typing import Dict, Any, List
 
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 import logging
 

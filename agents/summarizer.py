@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Dict, Any
 
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 
 from guardrails.output_filter import check_grounding, scan_output_for_pii

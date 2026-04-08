@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from config.settings import settings
 from config.prompts import MARKET_INTELLIGENCE_SYSTEM, MARKET_INTELLIGENCE_PROMPT_VERSION

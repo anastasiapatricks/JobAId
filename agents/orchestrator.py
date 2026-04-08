@@ -4,7 +4,7 @@ import json
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from models.state import JobAIdState, OrchestratorStage
 from guardrails.bounded_autonomy import BoundedAutonomy
