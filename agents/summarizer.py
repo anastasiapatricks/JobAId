@@ -59,8 +59,20 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
         is_safe, leaked_pii = scan_output_for_pii(summary_text)
         if not is_safe:
             debug(f"Summarizer: PII leakage detected in summary ({len(leaked_pii)} entities), redacting...")
-            from tools.pii_sanitizer import filter_pii
-            summary_text, _ = filter_pii(summary_text, use_ner=True)
+            # Redact only the sensitive entities that scan_output_for_pii flagged,
+            # NOT all NER entities (which would nuke company names, locations, etc.)
+            # Deduplicate overlapping spans to avoid garbled output like "re*]"
+            sorted_pii = sorted(leaked_pii, key=lambda e: e["start"], reverse=True)
+            prev_start = len(summary_text)
+            for entity in sorted_pii:
+                if entity["end"] > prev_start:
+                    continue  # skip overlapping span
+                summary_text = (
+                    summary_text[:entity["start"]]
+                    + "[REDACTED]"
+                    + summary_text[entity["end"]:]
+                )
+                prev_start = entity["start"]
 
     except Exception as exc:
         debug(f"Summarizer LLM error: {exc}")

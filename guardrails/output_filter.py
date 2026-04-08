@@ -306,17 +306,20 @@ def scan_output_for_pii(output: str) -> Tuple[bool, List[Dict[str, Any]]]:
     # Detect all PII using regex + NER
     entities = detect_pii(output, use_ner=True)
 
-    # Filter to only highly sensitive PII types
-    # We allow: company names (ORG), locations (GPE), job-related dates
-    # We block: emails, phones, SSN, DOB, personal addresses, person names
+    # Filter to only highly sensitive PII types (regex-detected only).
+    # We allow: company names (ORG), locations (GPE), job-related dates.
+    # NER_PERSON is excluded because (a) spaCy en_core_web_sm misclassifies
+    # professional terms like "Software" as PERSON, and (b) the user's own
+    # name is expected content in summaries and cover letters — it comes from
+    # session state (resume_info), not from LLM hallucination.
     sensitive_types = {
         'EMAIL',
         'PHONE',
         'SSN',
         'DATE_OF_BIRTH',
         'ADDRESS',
-        'NER_PERSON',  # Person names
-        # LinkedIn/GitHub are professional portfolio links — not redacted from output
+        # NER_PERSON excluded (see comment above).
+        # LinkedIn/GitHub are professional portfolio links — not redacted from output.
     }
 
     sensitive_pii = [

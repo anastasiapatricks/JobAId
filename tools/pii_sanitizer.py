@@ -8,7 +8,7 @@ _logger = logging.getLogger("jobaid.pii_sanitizer")
 
 # Patterns that may reveal protected characteristics
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
-_PHONE_RE = re.compile(r"\b(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b")
+_PHONE_RE = re.compile(r"(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}")
 _GENDER_INDICATORS = {"mr", "ms", "mrs", "miss", "sir", "madam", "he", "she", "him", "her"}
 
 # Extended PII patterns

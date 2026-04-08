@@ -462,8 +462,20 @@ def pitch_generator(state: Dict[str, Any]) -> Dict[str, Any]:
     is_safe, leaked_pii = scan_output_for_pii(raw_final_pitch)
     if not is_safe:
         debug(f"Pitch Generator: PII leakage detected in raw LLM output ({len(leaked_pii)} entities), redacting...")
-        from tools.pii_sanitizer import filter_pii
-        raw_final_pitch, _ = filter_pii(raw_final_pitch, use_ner=True)
+        # Redact only the sensitive entities that scan_output_for_pii flagged,
+        # NOT all NER entities (which would nuke company names, locations, etc.)
+        # Deduplicate overlapping spans to avoid garbled output like "re*]"
+        sorted_pii = sorted(leaked_pii, key=lambda e: e["start"], reverse=True)
+        prev_start = len(raw_final_pitch)
+        for entity in sorted_pii:
+            if entity["end"] > prev_start:
+                continue  # skip overlapping span
+            raw_final_pitch = (
+                raw_final_pitch[:entity["start"]]
+                + "[REDACTED]"
+                + raw_final_pitch[entity["end"]:]
+            )
+            prev_start = entity["start"]
 
     # ─── Post-processing: replace placeholders with actual data ───
     candidate_contact = _get_candidate_contact(state)
