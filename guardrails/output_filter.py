@@ -316,8 +316,7 @@ def scan_output_for_pii(output: str) -> Tuple[bool, List[Dict[str, Any]]]:
         'DATE_OF_BIRTH',
         'ADDRESS',
         'NER_PERSON',  # Person names
-        'LINKEDIN_URL',
-        'GITHUB_URL',
+        # LinkedIn/GitHub are professional portfolio links — not redacted from output
     }
 
     sensitive_pii = [

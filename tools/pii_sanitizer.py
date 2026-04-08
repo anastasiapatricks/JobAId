@@ -8,7 +8,7 @@ _logger = logging.getLogger("jobaid.pii_sanitizer")
 
 # Patterns that may reveal protected characteristics
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
-_PHONE_RE = re.compile(r"[\+]?[\d\s\-().]{7,15}")
+_PHONE_RE = re.compile(r"\b(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b")
 _GENDER_INDICATORS = {"mr", "ms", "mrs", "miss", "sir", "madam", "he", "she", "him", "her"}
 
 # Extended PII patterns
@@ -179,14 +179,12 @@ def detect_pii_ner(text: str) -> List[Dict[str, Any]]:
     entities = []
     doc = _SPACY_MODEL(text)
 
-    # Map spaCy entity types to PII categories
+    # Map spaCy entity types to PII categories.
+    # Only PERSON names are redacted — ORG, GPE, LOC, DATE, NORP are all
+    # critical resume content (employers, cities, work-period dates) and
+    # stripping them degrades downstream parsing quality.
     pii_entity_types = {
         "PERSON",      # People names
-        "ORG",         # Organizations (can reveal employer bias)
-        "GPE",         # Geopolitical entities (locations)
-        "LOC",         # Locations
-        "DATE",        # Dates (may reveal age)
-        "NORP",        # Nationalities, religious, political groups
     }
 
     for ent in doc.ents:
