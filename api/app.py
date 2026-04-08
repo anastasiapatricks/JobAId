@@ -14,10 +14,28 @@ load_dotenv(override=True)
 logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
 logging.getLogger("jobaid").setLevel(logging.INFO)
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.middleware import RequestLoggingMiddleware
 from api.routes import health, sessions, pipeline, resume, telemetry
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Seed ChromaDB
+    try:
+        from vectordb.seed_data import seed_all
+        seed_all()
+    except Exception as exc:
+        import logging
+        logging.getLogger("jobaid.api").warning(f"ChromaDB seeding failed: {exc}")
+
+    # Start session reaper (evicts sessions older than 1 hour)
+    from api.dependencies import start_session_reaper
+    start_session_reaper()
+
+    yield
 
 
 def create_app() -> FastAPI:
@@ -25,6 +43,7 @@ def create_app() -> FastAPI:
         title="JobAId API",
         description="LLM-powered multi-agent job search assistant",
         version="0.2.0",
+        lifespan=lifespan,
     )
 
     # CORS
@@ -38,21 +57,6 @@ def create_app() -> FastAPI:
 
     # Request logging
     app.add_middleware(RequestLoggingMiddleware)
-
-    # Startup tasks
-    @app.on_event("startup")
-    async def startup():
-        # Seed ChromaDB
-        try:
-            from vectordb.seed_data import seed_all
-            seed_all()
-        except Exception as exc:
-            import logging
-            logging.getLogger("jobaid.api").warning(f"ChromaDB seeding failed: {exc}")
-
-        # Start session reaper (evicts sessions older than 1 hour)
-        from api.dependencies import start_session_reaper
-        start_session_reaper()
 
     # Routes
     app.include_router(health.router)
