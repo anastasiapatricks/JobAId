@@ -9,7 +9,7 @@ _guard_logger = logging.getLogger("jobaid.guardrails")
 # Pitch-specific constants
 MAX_PITCH_LENGTH = 5000  # ~4 paragraphs max
 _EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-_PHONE_PATTERN = re.compile(r"(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}")
+_PHONE_PATTERN = re.compile(r"(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}|\b\d{7,11}\b")
 _FABRICATED_URL_PATTERN = re.compile(
     r"https?://(?!www\.)[a-z]+\.(?:com|org|net)/[a-z0-9/_-]{20,}", re.I
 )
@@ -355,15 +355,6 @@ def check_grounding(summary: str, state: Dict[str, Any]) -> float:
     summary_lower = summary.lower()
     checks = 0
     found = 0
-
-    # Check if resume info is referenced
-    info = state.get("resume_info", {})
-    contact = info.get("contact_info", {}) if isinstance(info, dict) else {}
-    name = contact.get("name") if isinstance(contact, dict) else None
-    if name:
-        checks += 1
-        if name.lower() in summary_lower:
-            found += 1
 
     # Check if top job is referenced
     scored = state.get("scored_jobs", [])

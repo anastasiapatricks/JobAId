@@ -111,7 +111,7 @@ class TestCheckGrounding:
         assert score == 1.0
 
     def test_partially_grounded(self, sample_state):
-        summary = "John Doe has strong qualifications for various roles."
+        summary = "The candidate should apply to Google for various roles."
         score = check_grounding(summary, sample_state)
         assert 0.0 < score < 1.0
 

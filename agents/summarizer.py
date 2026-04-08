@@ -35,9 +35,37 @@ _EXCLUDE_KEYS = {
 
 
 def _build_context(state: Dict[str, Any]) -> str:
-    """Serialize the relevant parts of state as JSON for the LLM."""
+    """Serialize the relevant parts of state as JSON for the LLM.
+
+    Strips contact PII (name, email, phone) from resume_info before sending
+    to the LLM. These are repopulated in the summary after generation.
+    """
     filtered = {k: v for k, v in state.items() if k not in _EXCLUDE_KEYS and v}
+
+    # Strip contact PII — never send name/email/phone to LLM
+    if "resume_info" in filtered and isinstance(filtered["resume_info"], dict):
+        filtered["resume_info"] = _strip_contact_pii(filtered["resume_info"])
+
     return json.dumps(filtered, indent=2, default=str)
+
+
+def _strip_contact_pii(resume_info: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove name, email, phone from resume_info for LLM context."""
+    info = {k: v for k, v in resume_info.items()}
+    contact = info.get("contact_info", {})
+    if isinstance(contact, dict):
+        info["contact_info"] = {
+            k: v for k, v in contact.items()
+            if k not in ("name", "email", "phone")
+        }
+    return info
+
+
+def _get_candidate_name(state: Dict[str, Any]) -> str:
+    """Extract candidate name from state (for post-processing, never sent to LLM)."""
+    info = state.get("resume_info") or {}
+    contact = info.get("contact_info", {}) if isinstance(info, dict) else {}
+    return contact.get("name", "") if isinstance(contact, dict) else ""
 
 
 def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -77,6 +105,14 @@ def summarizer(state: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         debug(f"Summarizer LLM error: {exc}")
         summary_text = f"=== JobAId Summary ===\n\n{context}"
+
+    # Post-processing: repopulate candidate name (same pattern as pitch generator)
+    candidate_name = _get_candidate_name(state)
+    if candidate_name:
+        import re
+        # Replace common placeholder patterns the LLM may use
+        for pattern in [r"\[Candidate Name\]", r"\[Your Name\]", r"\[Name\]"]:
+            summary_text = re.sub(pattern, candidate_name, summary_text, flags=re.IGNORECASE)
 
     # Grounding check — verify summary references state data
     grounding_score = check_grounding(summary_text, state)

@@ -179,9 +179,8 @@ def _build_state_summary(state: dict) -> str:
 
     resume_info = latest.get("resume_info") or state.get("resume_info")
     if resume_info:
-        name = (resume_info.get("contact_info") or {}).get("name", "Unknown")
         skills = (resume_info.get("skills") or {}).get("technical", [])
-        parts.append(f"Resume parsed: {name}, skills: {', '.join(skills[:8])}")
+        parts.append(f"Resume parsed, skills: {', '.join(skills[:8])}")
     else:
         parts.append("Resume: not yet parsed")
 
